@@ -8,9 +8,9 @@ Aplicação local (HTML/JS/CSS) para:
 
 ## Arquivos principais
 
-- `/tmp/workspace/Eduponge/VerificaMalha/index.html`: upload do DayRep, parsing e timeline por matrícula.
-- `/tmp/workspace/Eduponge/VerificaMalha/restricoes.html`: cadastro/edição/exclusão de restrições.
-- `/tmp/workspace/Eduponge/VerificaMalha/analise.html`: cruzamento DayRep x restrições e lista de eventos.
+- `index.html`: upload do DayRep, parsing e timeline por matrícula.
+- `restricoes.html`: cadastro/edição/exclusão de restrições.
+- `analise.html`: cruzamento DayRep x restrições e lista de eventos.
 
 ## Como usar
 
