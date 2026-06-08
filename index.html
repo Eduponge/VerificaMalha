@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Cargolux - Network Timeline</title>
+    <title>Cargolux - Timeline DayRep</title>
     <style>
         body { font-family: Calibri, sans-serif; margin: 20px; background-color: #f4f6f9; }
         h2 { color: #3498DB; border-bottom: 2px solid #3498DB; padding-bottom: 5px; }
@@ -10,13 +10,13 @@
         .nav a { margin-right: 15px; text-decoration: none; color: #2c3e50; font-weight: bold; }
         .nav a:hover { color: #3498DB; }
         .container { background: #fff; padding: 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .upload-box { 
-            border: 2px dashed #3498DB; 
-            padding: 30px; 
-            text-align: center; 
-            background: #f9fbfd; 
-            border-radius: 5px; 
-            margin-bottom: 20px; 
+        .upload-box {
+            border: 2px dashed #3498DB;
+            padding: 30px;
+            text-align: center;
+            background: #f9fbfd;
+            border-radius: 5px;
+            margin-bottom: 20px;
         }
         .upload-box input[type="file"] { display: none; }
         .custom-file-upload {
@@ -34,135 +34,306 @@
         .timeline-container { margin-top: 20px; }
         .ac-block { background: #ecf0f1; margin-bottom: 15px; padding: 15px; border-left: 5px solid #3498DB; border-radius: 3px; }
         .ac-title { font-size: 16px; font-weight: bold; color: #2c3e50; margin-bottom: 10px; }
+        .meta { font-size: 13px; color: #333; margin-bottom: 8px; }
         table { width: 100%; border-collapse: collapse; background: #fff; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: center; font-size: 13px; }
         th { background-color: #3498DB; color: white; }
+        .small { font-size: 12px; color: #666; }
+        .error { color: #c0392b; font-weight: bold; }
     </style>
 </head>
 <body>
 
     <div class="nav">
-        <a href="index.html">⏱ Network Timeline</a>
-        <a href="restricoes.html">⚠️ Restriction Insertions</a>
-        <a href="aeronaves.html">✈️ Aircraft Database</a>
-        <a href="aeroportos.html">🏢 Airports Database</a>
-        <a href="analise.html">🔍 Network Analysis</a>
+        <a href="index.html">⏱ Timeline da Malha</a>
+        <a href="restricoes.html">⚠️ Cadastro de Restrições</a>
+        <a href="analise.html">🔍 Análise</a>
     </div>
 
     <div class="container">
-        <h2>Process DayRep Report</h2>
-        <p>Select and upload your DayRep HTML file below to generate the operational timeline:</p>
-        
+        <h2>Processar DayRep</h2>
+        <p>Selecione o HTML do DayRep para gerar a timeline por matrícula e salvar os segmentos enriquecidos para análise.</p>
+
         <div class="upload-box">
             <label class="custom-file-upload">
                 <input type="file" id="dayrepFile" accept=".html,.htm" onchange="displayFileName()" />
-                📁 Choose DayRep File
+                📁 Escolher arquivo DayRep
             </label>
-            <div class="file-name" id="fileNameDisplay">No file selected</div>
+            <div class="file-name" id="fileNameDisplay">Nenhum arquivo selecionado</div>
             <br>
-            <button style="background-color: #27AE60; color: white; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; border-radius: 3px;" onclick="processarDayRepFile()">Generate Timeline</button>
+            <button style="background-color: #27AE60; color: white; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; border-radius: 3px;" onclick="processarDayRepFile()">Gerar timeline</button>
+            <div class="small">Ao carregar novo DayRep, a última análise salva é invalidada automaticamente.</div>
         </div>
 
         <div class="timeline-container" id="timelineOutput"></div>
     </div>
 
     <script>
+        function norm(v) {
+            return String(v || '').replace(/\u00A0/g, ' ').trim();
+        }
+
+        function normalizeHeader(v) {
+            return norm(v).toUpperCase().replace(/[^A-Z0-9#]/g, '');
+        }
+
+        function parseDateParts(dateRaw) {
+            const match = norm(dateRaw).match(/^(\d{2})\/(\d{2})\/(\d{2}|\d{4})$/);
+            if (!match) return null;
+            const day = Number(match[1]);
+            const month = Number(match[2]);
+            const rawYear = Number(match[3]);
+            const year = rawYear < 100 ? 2000 + rawYear : rawYear;
+            if (!day || !month || !year) return null;
+            return { day, month, year };
+        }
+
+        function parseDateTime(dateRaw, hhmm) {
+            const parts = parseDateParts(dateRaw);
+            const timeMatch = norm(hhmm).match(/^(\d{1,2}):(\d{2})$/);
+            if (!parts || !timeMatch) return null;
+            const h = Number(timeMatch[1]);
+            const m = Number(timeMatch[2]);
+            if (Number.isNaN(h) || Number.isNaN(m)) return null;
+            return new Date(Date.UTC(parts.year, parts.month - 1, parts.day, h, m, 0));
+        }
+
+        function adjustEnd(start, end) {
+            if (!start || !end) return end;
+            if (end < start) {
+                const adjusted = new Date(end);
+                adjusted.setUTCDate(adjusted.getUTCDate() + 1);
+                return adjusted;
+            }
+            return end;
+        }
+
         function displayFileName() {
             const fileInput = document.getElementById('dayrepFile');
             const fileNameDisplay = document.getElementById('fileNameDisplay');
-            if (fileInput.files.length > 0) {
-                fileNameDisplay.textContent = `Selected file: ${fileInput.files[0].name}`;
-            } else {
-                fileNameDisplay.textContent = "No file selected";
+            fileNameDisplay.textContent = fileInput.files.length > 0
+                ? `Arquivo selecionado: ${fileInput.files[0].name}`
+                : 'Nenhum arquivo selecionado';
+        }
+
+        function findHeaderMap(rows) {
+            for (const row of rows) {
+                const normalized = row.map(normalizeHeader);
+                if (!normalized.includes('DATE') || !normalized.includes('REG') || !normalized.includes('DEP') || !normalized.includes('ARR')) {
+                    continue;
+                }
+
+                const firstIndex = (name) => normalized.findIndex((value) => value === name);
+                const headerMap = {
+                    date: firstIndex('DATE'),
+                    flt: firstIndex('FLT'),
+                    reg: firstIndex('REG'),
+                    dep: firstIndex('DEP'),
+                    arr: firstIndex('ARR'),
+                    std: firstIndex('STD'),
+                    sta: firstIndex('STA'),
+                    etd: firstIndex('ETD'),
+                    eta: firstIndex('ETA'),
+                    ac: firstIndex('AC'),
+                    carrier: firstIndex('CARRIER'),
+                    type: firstIndex('TYPE'),
+                    crew: firstIndex('CREW#')
+                };
+
+                if (headerMap.date >= 0 && headerMap.reg >= 0 && headerMap.dep >= 0 && headerMap.arr >= 0 && headerMap.std >= 0 && headerMap.sta >= 0) {
+                    return { map: headerMap, row };
+                }
             }
+            return null;
+        }
+
+        function rowText(row, idx) {
+            return idx >= 0 && idx < row.length ? norm(row[idx]) : '';
+        }
+
+        function parseFlightsFromDoc(doc) {
+            const rows = Array.from(doc.querySelectorAll('tr')).map((tr) =>
+                Array.from(tr.querySelectorAll('th,td')).map((cell) => norm(cell.textContent))
+            );
+
+            const header = findHeaderMap(rows);
+            if (!header) return [];
+
+            const result = [];
+            for (const row of rows) {
+                const dateRaw = rowText(row, header.map.date);
+                const reg = rowText(row, header.map.reg).toUpperCase();
+                const dep = rowText(row, header.map.dep).toUpperCase();
+                const arr = rowText(row, header.map.arr).toUpperCase();
+                const std = rowText(row, header.map.std);
+                const sta = rowText(row, header.map.sta);
+
+                if (!parseDateParts(dateRaw) || !reg || !dep || !arr || !/^\d{1,2}:\d{2}$/.test(std) || !/^\d{1,2}:\d{2}$/.test(sta)) {
+                    continue;
+                }
+
+                const stdDt = parseDateTime(dateRaw, std);
+                const staDt = adjustEnd(stdDt, parseDateTime(dateRaw, sta));
+                const etdRaw = rowText(row, header.map.etd);
+                const etaRaw = rowText(row, header.map.eta);
+                const etdDt = /^\d{1,2}:\d{2}$/.test(etdRaw) ? parseDateTime(dateRaw, etdRaw) : null;
+                const etaDt = /^\d{1,2}:\d{2}$/.test(etaRaw) ? adjustEnd(etdDt || stdDt, parseDateTime(dateRaw, etaRaw)) : null;
+
+                let delayMinutes = null;
+                let delayBasis = '';
+                if (etdDt && etaDt) {
+                    delayMinutes = Math.round((etaDt - etdDt) / 60000);
+                    delayBasis = 'ETA-ETD';
+                } else if (stdDt && staDt) {
+                    delayMinutes = Math.round((staDt - stdDt) / 60000);
+                    delayBasis = 'STA-STD';
+                }
+
+                const parts = parseDateParts(dateRaw);
+                const depDate = stdDt || etdDt;
+
+                result.push({
+                    id: `${reg}-${dep}-${arr}-${(depDate ? depDate.toISOString() : dateRaw + '-' + std)}-${result.length}`,
+                    dateRaw,
+                    dateISO: depDate ? depDate.toISOString().slice(0, 10) : '',
+                    weekday: depDate ? depDate.getUTCDay() : null,
+                    day: parts.day,
+                    month: parts.month,
+                    year: parts.year,
+                    flightNumber: rowText(row, header.map.flt),
+                    carrier: rowText(row, header.map.carrier),
+                    flightType: rowText(row, header.map.type),
+                    reg,
+                    fleetType: rowText(row, header.map.ac).toUpperCase(),
+                    orig: dep,
+                    dest: arr,
+                    std,
+                    sta,
+                    etd: etdRaw,
+                    eta: etaRaw,
+                    depDateTimeISO: depDate ? depDate.toISOString() : '',
+                    arrDateTimeISO: (etaDt || staDt) ? (etaDt || staDt).toISOString() : '',
+                    delayMinutes,
+                    delayBasis,
+                    crewCount: Number(rowText(row, header.map.crew)) || null,
+                    previousSegmentId: null,
+                    nextSegmentId: null,
+                    previousLabel: '',
+                    nextLabel: '',
+                    groundTimeToNextMinutes: null
+                });
+            }
+
+            const grouped = {};
+            result.forEach((segment) => {
+                if (!grouped[segment.reg]) grouped[segment.reg] = [];
+                grouped[segment.reg].push(segment);
+            });
+
+            Object.values(grouped).forEach((list) => {
+                list.sort((a, b) => new Date(a.depDateTimeISO || '1970-01-01T00:00:00Z') - new Date(b.depDateTimeISO || '1970-01-01T00:00:00Z'));
+                list.forEach((segment, idx) => {
+                    const previous = idx > 0 ? list[idx - 1] : null;
+                    const next = idx < list.length - 1 ? list[idx + 1] : null;
+                    segment.previousSegmentId = previous ? previous.id : null;
+                    segment.nextSegmentId = next ? next.id : null;
+                    segment.previousLabel = previous ? `${previous.flightNumber || '-'} ${previous.orig}-${previous.dest} ${previous.std}` : '-';
+                    segment.nextLabel = next ? `${next.flightNumber || '-'} ${next.orig}-${next.dest} ${next.std}` : '-';
+                    if (next && segment.arrDateTimeISO && next.depDateTimeISO) {
+                        segment.groundTimeToNextMinutes = Math.round((new Date(next.depDateTimeISO) - new Date(segment.arrDateTimeISO)) / 60000);
+                    }
+                });
+            });
+
+            return result;
+        }
+
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function renderTimeline(segments, fileName) {
+            const output = document.getElementById('timelineOutput');
+            if (!segments.length) {
+                output.innerHTML = '<p class="error">Nenhum segmento válido encontrado no DayRep selecionado.</p>';
+                return;
+            }
+
+            const grouped = {};
+            segments.forEach((segment) => {
+                if (!grouped[segment.reg]) grouped[segment.reg] = [];
+                grouped[segment.reg].push(segment);
+            });
+
+            const regs = Object.keys(grouped).sort();
+            let html = `<p><b>Arquivo:</b> ${escapeHtml(fileName)} | <b>Segmentos válidos:</b> ${segments.length} | <b>Matrículas:</b> ${regs.length}</p>`;
+
+            regs.forEach((reg) => {
+                const list = grouped[reg].slice().sort((a, b) => new Date(a.depDateTimeISO) - new Date(b.depDateTimeISO));
+                html += `<div class="ac-block"><div class="ac-title">Matrícula: ${escapeHtml(reg)}</div>`;
+                html += '<table><tr><th>Data</th><th>Voo</th><th>Orig</th><th>Dest</th><th>STD</th><th>STA/ETA</th><th>Atraso (min)</th><th>Ground até próximo (min)</th><th>Voo anterior</th><th>Voo sucessor</th></tr>';
+                list.forEach((segment) => {
+                    const arrRef = segment.eta || segment.sta || '-';
+                    html += `<tr>
+                        <td>${escapeHtml(segment.dateRaw)}</td>
+                        <td>${escapeHtml(segment.flightNumber || '-')}</td>
+                        <td>${escapeHtml(segment.orig)}</td>
+                        <td>${escapeHtml(segment.dest)}</td>
+                        <td>${escapeHtml(segment.std || '-')}</td>
+                        <td>${escapeHtml(arrRef)}</td>
+                        <td>${segment.delayMinutes == null ? '-' : segment.delayMinutes}</td>
+                        <td>${segment.groundTimeToNextMinutes == null ? '-' : segment.groundTimeToNextMinutes}</td>
+                        <td>${escapeHtml(segment.previousLabel || '-')}</td>
+                        <td>${escapeHtml(segment.nextLabel || '-')}</td>
+                    </tr>`;
+                });
+                html += '</table></div>';
+            });
+
+            output.innerHTML = html;
         }
 
         function processarDayRepFile() {
             const fileInput = document.getElementById('dayrepFile');
-            if (fileInput.files.length === 0) {
-                alert("Please select a DayRep HTML file first.");
+            if (!fileInput.files.length) {
+                alert('Selecione um arquivo DayRep HTML.');
                 return;
             }
 
             const file = fileInput.files[0];
             const reader = new FileReader();
-
             reader.onload = function(e) {
-                const input = e.target.result;
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(input, 'text/html');
-                const rows = doc.querySelectorAll('tr');
-                
-                let flights = [];
-                let headers = {};
-
-                // Mapeamento dinâmico dos índices das colunas através do cabeçalho do DayRep
-                rows.forEach(row => {
-                    const cells = row.querySelectorAll('td');
-                    if (cells.length > 5 && Object.keys(headers).length === 0) {
-                        cells.forEach((cell, idx) => {
-                            const text = cell.textContent.trim().toUpperCase().replace(/[^A-Z]/g, '');
-                            if (text === 'DATE') headers['date'] = idx;
-                            if (text === 'FLT') headers['flt'] = idx;
-                            if (text === 'REG') headers['reg'] = idx;
-                            if (text === 'DEP') headers['dep'] = idx;
-                            if (text === 'ARR') headers['arr'] = idx;
-                            if (text === 'STD') headers['std'] = idx;
-                            if (text === 'STA') headers['sta'] = idx;
-                        });
+                try {
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(e.target.result, 'text/html');
+                    const segments = parseFlightsFromDoc(doc);
+                    if (!segments.length) {
+                        renderTimeline([], file.name);
+                        alert('Nenhum voo válido encontrado. Verifique se o arquivo DayRep contém tabela com DATE/REG/DEP/ARR/STD/STA.');
+                        return;
                     }
-                });
 
-                // Caso não encontre a linha de cabeçalhos padrão, tenta um fallback estrutural alternativo
-                if (!headers['reg'] || !headers['std']) {
-                    headers = { 'date': 0, 'flt': 1, 'reg': 4, 'dep': 6, 'arr': 7, 'std': 8, 'sta': 9 };
+                    const dayRepMeta = {
+                        fileName: file.name,
+                        loadedAt: new Date().toISOString(),
+                        segmentCount: segments.length
+                    };
+
+                    localStorage.setItem('currentDayRepSegments', JSON.stringify(segments));
+                    localStorage.setItem('currentDayRep', JSON.stringify(segments));
+                    localStorage.setItem('currentDayRepMeta', JSON.stringify(dayRepMeta));
+                    localStorage.removeItem('lastAnalysis');
+
+                    renderTimeline(segments, file.name);
+                    alert('Timeline gerada e salva. A análise anterior foi invalidada para este novo DayRep.');
+                } catch (error) {
+                    document.getElementById('timelineOutput').innerHTML = `<p class="error">Falha ao processar o arquivo: ${escapeHtml(error.message)}</p>`;
                 }
-
-                rows.forEach(row => {
-                    const cells = row.querySelectorAll('td');
-                    if (cells.length > Math.max(...Object.values(headers))) {
-                        const txt = (idx) => cells[idx] ? cells[idx].textContent.trim().replace(/&nbsp;/g, ' ') : '';
-                        
-                        const dateStr = txt(headers['date']);
-                        const flt = txt(headers['flt']);
-                        const reg = txt(headers['reg']);
-                        const dep = txt(headers['dep']);
-                        const arr = txt(headers['arr']);
-                        const std = txt(headers['std']);
-                        const sta = txt(headers['sta']);
-
-                        // Valida se a linha contém dados de voo reais (ignora linhas vazias ou de cabeçalho repetido)
-                        if (reg && reg !== 'REG' && reg.length >= 3 && std && std.includes(':') && dateStr && dateStr.includes('/')) {
-                            flights.push({
-                                date: dateStr, flt: flt, reg: reg, dep: dep, arr: arr, std: std, sta: sta,
-                                dateTimeSort: new Date(dateStr.split('/').reverse().join('-') + 'T' + std)
-                            });
-                        }
-                    }
-                });
-
-                if(flights.length === 0) { 
-                    alert("No valid flights found. Please ensure this is a correct DayRep HTML report export containing flight legs."); 
-                    return; 
-                }
-
-                // Agrupamento por matrícula
-                let grouped = {};
-                flights.forEach(f => { if (!grouped[f.reg]) grouped[f.reg] = []; grouped[f.reg].push(f); });
-                
-                let outputHtml = '';
-                for (let reg in grouped) {
-                    grouped[reg].sort((a, b) => a.dateTimeSort - b.dateTimeSort);
-                    outputHtml += `<div class="ac-block"><div class="ac-title">Tail Number: ${reg}</div><table><tr><th>Date</th><th>FLT</th><th>DEP</th><th>ARR</th><th>STD (UTC)</th><th>STA (UTC)</th></tr>`;
-                    grouped[reg].forEach(f => {
-                        outputHtml += `<tr><td>${f.date}</td><td>${f.flt}</td><td>${f.dep}</td><td>${f.arr}</td><td>${f.std}</td><td>${f.sta}</td></tr>`;
-                    });
-                    outputHtml += `</table></div>`;
-                }
-
-                localStorage.setItem('currentDayRep', JSON.stringify(flights));
-                document.getElementById('timelineOutput').innerHTML = outputHtml;
-                alert("Timeline successfully generated from file and saved locally for analysis!");
             };
 
             reader.readAsText(file);

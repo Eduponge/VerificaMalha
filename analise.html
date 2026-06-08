@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Restriction Impact Dashboard</title>
+    <title>Análise de Restrições</title>
     <style>
         body { font-family: Calibri, sans-serif; margin: 20px; background-color: #f4f6f9; }
         h2 { color: #D35400; border-bottom: 2px solid #D35400; padding-bottom: 5px; }
@@ -10,58 +10,297 @@
         .nav a { margin-right: 15px; text-decoration: none; color: #2c3e50; font-weight: bold; }
         .nav a:hover { color: #3498DB; }
         .container { background: #fff; padding: 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .alert-card { padding: 15px; margin-bottom: 10px; border-radius: 4px; border-left: 6px solid; font-size: 14px; }
-        .alert-high { background-color: #FDEDEC; border-color: #E74C3C; color: #c0392b; }
-        .alert-warn { background-color: #FEF9E7; border-color: #F39C12; color: #d35400; }
+        .meta { font-size: 13px; color: #555; margin-bottom: 10px; }
+        .actions { margin-bottom: 12px; }
+        .actions button { background: #D35400; color: #fff; border: none; padding: 10px 14px; border-radius: 3px; cursor: pointer; font-weight: bold; }
+        .actions button:hover { background: #AF4B00; }
+        .alert-card { padding: 12px; margin-bottom: 10px; border-radius: 4px; border-left: 6px solid; font-size: 14px; background-color: #FEF9E7; border-color: #F39C12; color: #5e3c00; }
+        .alert-high { background-color: #FDEDEC; border-color: #E74C3C; color: #8f2d23; }
+        .alert-warn { background-color: #FEF9E7; border-color: #F39C12; color: #7f4c00; }
         .no-alerts { color: #27AE60; font-weight: bold; font-size: 16px; }
     </style>
 </head>
 <body>
 
     <div class="nav">
-        <a href="index.html">⏱ Network Timeline</a>
-        <a href="restricoes.html">⚠️ Restriction Insertions</a>
-        <a href="aeronaves.html">✈️ Aircraft Database</a>
-        <a href="aeroportos.html">🏢 Airports Database</a>
-        <a href="analise.html">🔍 Network Analysis</a>
+        <a href="index.html">⏱ Timeline da Malha</a>
+        <a href="restricoes.html">⚠️ Cadastro de Restrições</a>
+        <a href="analise.html">🔍 Análise</a>
     </div>
 
     <div class="container">
-        <h2>Network Restrictions vs. DayRep Impact Analysis</h2>
-        <p>Alerts generated from cross-referencing active schedule with registered restrictions:</p>
+        <h2>Análise DayRep x Restrições</h2>
+        <p>Eventos gerados quando todos os critérios (AND) são atendidos. Janelas de hora funcionam com OR entre até três blocos.</p>
+        <div class="meta" id="analysisMeta"></div>
+        <div class="actions">
+            <button onclick="runAnalysis(true)">Reanalisar agora</button>
+        </div>
         <div id="alertsOutput"></div>
     </div>
 
     <script>
-        function analisarMalha() {
-            const flights = JSON.parse(localStorage.getItem('currentDayRep') || '[]');
-            const restrictions = JSON.parse(localStorage.getItem('restrictions') || '[]');
-            const output = document.getElementById('alertsOutput');
-            if (flights.length === 0) {
-                output.innerHTML = "<p class='alert-warn'>No active DayRep schedule. Please upload data in the 'Network Timeline' tab first.</p>";
-                return;
+        const ANALYSIS_KEY = 'lastAnalysis';
+
+        function norm(value) {
+            return String(value || '').trim();
+        }
+
+        function upper(value) {
+            return norm(value).toUpperCase();
+        }
+
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function parseTimeToMinutes(hhmm) {
+            const match = norm(hhmm).match(/^(\d{1,2}):(\d{2})$/);
+            if (!match) return null;
+            return Number(match[1]) * 60 + Number(match[2]);
+        }
+
+        function segmentTimeMinutes(segment) {
+            const fromStd = parseTimeToMinutes(segment.std);
+            if (fromStd != null) return fromStd;
+            const depISO = norm(segment.depDateTimeISO);
+            if (!depISO) return null;
+            const depDate = new Date(depISO);
+            if (Number.isNaN(depDate.getTime())) return null;
+            return depDate.getUTCHours() * 60 + depDate.getUTCMinutes();
+        }
+
+        function isHourInWindow(segmentMinutes, start, end) {
+            const s = parseTimeToMinutes(start);
+            const e = parseTimeToMinutes(end);
+            if (segmentMinutes == null || s == null || e == null) return false;
+            if (s <= e) return segmentMinutes >= s && segmentMinutes <= e;
+            return segmentMinutes >= s || segmentMinutes <= e;
+        }
+
+        function matchField(restrictionValue, segmentValue) {
+            const rv = upper(restrictionValue);
+            if (!rv) return true;
+            return rv === upper(segmentValue);
+        }
+
+        function matchNumeric(restrictionValue, segmentValue) {
+            if (restrictionValue === '' || restrictionValue == null) return true;
+            return Number(restrictionValue) === Number(segmentValue);
+        }
+
+        function matchWeekday(restrictionValue, segmentWeekday) {
+            const rv = upper(restrictionValue);
+            if (!rv) return true;
+            const names = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+            const numeric = Number(rv);
+            if (!Number.isNaN(numeric)) return numeric === Number(segmentWeekday);
+            return names[Number(segmentWeekday)] === rv.slice(0, 3);
+        }
+
+        function evaluateHourWindows(restriction, segment) {
+            const windows = [
+                [restriction.initHour1, restriction.endHour1],
+                [restriction.initHour2, restriction.endHour2],
+                [restriction.initHour3, restriction.endHour3]
+            ];
+
+            const validWindows = windows.filter(([start, end]) => norm(start) && norm(end));
+            if (!validWindows.length) return { pass: true, detail: 'Sem filtro de hora' };
+
+            const segmentMinutes = segmentTimeMinutes(segment);
+            const passedWindow = validWindows.find(([start, end]) => isHourInWindow(segmentMinutes, start, end));
+            if (!passedWindow) return { pass: false, detail: 'Fora das janelas horárias' };
+            return { pass: true, detail: `Dentro da janela ${passedWindow[0]}-${passedWindow[1]}` };
+        }
+
+        function isRestrictionActive(restriction, segment) {
+            if (!restriction.expirationDate) return true;
+            const dep = new Date(segment.depDateTimeISO || '');
+            if (Number.isNaN(dep.getTime())) return true;
+            const exp = new Date(`${restriction.expirationDate}T23:59:59Z`);
+            return dep <= exp;
+        }
+
+        function evaluateRestrictionAgainstSegment(restriction, segment) {
+            if (!isRestrictionActive(restriction, segment)) {
+                return { pass: false, reason: ['Restrição expirada para a data do segmento'] };
             }
-            let alertHtml = '';
-            let alertCount = 0;
-            flights.forEach(flight => {
-                restrictions.forEach(res => {
-                    const scopeMatch = res.scope === flight.dep || res.scope === flight.arr;
-                    const acftMatch = res.acft === "" || flight.reg.includes(res.acft);
-                    if (scopeMatch && acftMatch) {
-                        alertCount++;
-                        let severityClass = ['Curfew', 'ATC SLOT', 'ARPT SLOT'].includes(res.type) ? 'alert-high' : 'alert-warn';
-                        alertHtml += `
-                            <div class="alert-card ${severityClass}">
-                                <strong>⚠️ IMPACT ALERT [${res.type.toUpperCase()}]</strong><br>
-                                Flight <b>${flight.flt}</b> (${flight.reg}) on route <b>${flight.dep} ➔ ${flight.arr}</b> intercepted a restriction for scope <b>${res.scope}</b>.<br>
-                                <small><b>Window:</b> ${res.start.replace('T', ' ')} to ${res.end.replace('T', ' ')} | <b>Rule:</b> ${res.desc} (${res.param})</small>
-                            </div>`;
+
+            const reasons = [];
+            const checks = [];
+
+            checks.push(matchField(restriction.arptIataOrig, segment.orig));
+            if (restriction.arptIataOrig) reasons.push(`Origem=${segment.orig}`);
+
+            checks.push(matchField(restriction.arptIataArr, segment.dest));
+            if (restriction.arptIataArr) reasons.push(`Destino=${segment.dest}`);
+
+            checks.push(matchWeekday(restriction.weekday, segment.weekday));
+            if (restriction.weekday) reasons.push(`Weekday=${segment.weekday}`);
+
+            checks.push(matchNumeric(restriction.day, segment.day));
+            if (restriction.day !== '') reasons.push(`Dia=${segment.day}`);
+
+            checks.push(matchNumeric(restriction.month, segment.month));
+            if (restriction.month !== '') reasons.push(`Mês=${segment.month}`);
+
+            checks.push(matchNumeric(restriction.year, segment.year));
+            if (restriction.year !== '') reasons.push(`Ano=${segment.year}`);
+
+            const fleetCandidate = segment.fleetType || segment.reg;
+            checks.push(matchField(restriction.fleetType, fleetCandidate) || matchField(restriction.fleetType, segment.reg));
+            if (restriction.fleetType) reasons.push(`Fleet/AC=${fleetCandidate || segment.reg}`);
+
+            const hourCheck = evaluateHourWindows(restriction, segment);
+            checks.push(hourCheck.pass);
+            if (hourCheck.detail) reasons.push(hourCheck.detail);
+
+            if (restriction.maxDelayTime !== '' && restriction.maxDelayTime != null) {
+                const delay = Number(segment.delayMinutes);
+                const limit = Number(restriction.maxDelayTime);
+                const pass = Number.isFinite(delay) && delay > limit;
+                checks.push(pass);
+                reasons.push(`Delay ${Number.isFinite(delay) ? delay : '-'} min > limite ${limit} min`);
+            }
+
+            if (restriction.maxGroundTime !== '' && restriction.maxGroundTime != null) {
+                const ground = Number(segment.groundTimeToNextMinutes);
+                const limit = Number(restriction.maxGroundTime);
+                const pass = Number.isFinite(ground) && ground > limit;
+                checks.push(pass);
+                reasons.push(`Ground ${Number.isFinite(ground) ? ground : '-'} min > limite ${limit} min`);
+            }
+
+            if (restriction.minCrewComposition !== '' && restriction.minCrewComposition != null) {
+                const crew = Number(segment.crewCount);
+                const minCrew = Number(restriction.minCrewComposition);
+                const pass = Number.isFinite(crew) && crew < minCrew;
+                checks.push(pass);
+                reasons.push(`Crew ${Number.isFinite(crew) ? crew : '-'} < mínimo ${minCrew}`);
+            }
+
+            const pass = checks.every(Boolean);
+            return { pass, reason: reasons };
+        }
+
+        function getSegments() {
+            const modern = JSON.parse(localStorage.getItem('currentDayRepSegments') || '[]');
+            if (Array.isArray(modern) && modern.length) return modern;
+            const legacy = JSON.parse(localStorage.getItem('currentDayRep') || '[]');
+            return Array.isArray(legacy) ? legacy : [];
+        }
+
+        function getRestrictions() {
+            const modern = JSON.parse(localStorage.getItem('restrictionsV2') || '[]');
+            if (Array.isArray(modern) && modern.length) return modern;
+            const legacy = JSON.parse(localStorage.getItem('restrictions') || '[]');
+            return Array.isArray(legacy) ? legacy : [];
+        }
+
+        function severityFor(type) {
+            const t = upper(type);
+            return ['CURFEW', 'ATC SLOT', 'ARPT SLOT'].includes(t) ? 'alert-high' : 'alert-warn';
+        }
+
+        function buildEvent(restriction, segment, reasons) {
+            return {
+                restrictionId: restriction.id || '-',
+                restrictionType: restriction.restrictionType || restriction.type || '-',
+                segmentId: segment.id || '-',
+                flightNumber: segment.flightNumber || segment.flt || '-',
+                reg: segment.reg || '-',
+                orig: segment.orig || segment.dep || '-',
+                dest: segment.dest || segment.arr || '-',
+                date: segment.dateRaw || segment.date || '-',
+                time: segment.std || '-',
+                reason: reasons.join(' | '),
+                description: restriction.description || restriction.desc || ''
+            };
+        }
+
+        function analyze(segments, restrictions) {
+            const events = [];
+            segments.forEach((segment) => {
+                restrictions.forEach((restriction) => {
+                    const result = evaluateRestrictionAgainstSegment(restriction, segment);
+                    if (result.pass) {
+                        events.push(buildEvent(restriction, segment, result.reason));
                     }
                 });
             });
-            output.innerHTML = alertCount === 0 ? "<p class='no-alerts'>✅ No restriction violations found for the current schedule!</p>" : alertHtml;
+            return events;
         }
-        window.onload = analisarMalha;
+
+        function renderEvents(payload) {
+            const output = document.getElementById('alertsOutput');
+            const meta = document.getElementById('analysisMeta');
+            const metaText = [
+                `DayRep: ${escapeHtml(payload.dayRepFileName || 'não informado')}`,
+                `Segmentos: ${payload.segmentCount}`,
+                `Restrições: ${payload.restrictionCount}`,
+                `Eventos: ${payload.events.length}`,
+                `Gerado em: ${new Date(payload.generatedAt).toLocaleString('pt-BR', { hour12: false })}`
+            ].join(' | ');
+            meta.textContent = metaText;
+
+            if (!payload.events.length) {
+                output.innerHTML = "<p class='no-alerts'>✅ Nenhum evento encontrado para o DayRep e restrições atuais.</p>";
+                return;
+            }
+
+            output.innerHTML = payload.events.map((event) => `
+                <div class="alert-card ${severityFor(event.restrictionType)}">
+                    <strong>⚠️ Restrição acionada:</strong> ${escapeHtml(event.restrictionType)}<br>
+                    <b>Voo/segmento:</b> ${escapeHtml(event.flightNumber)} (${escapeHtml(event.segmentId)})<br>
+                    <b>Matrícula:</b> ${escapeHtml(event.reg)} | <b>Rota:</b> ${escapeHtml(event.orig)} ➔ ${escapeHtml(event.dest)}<br>
+                    <b>Data/Hora:</b> ${escapeHtml(event.date)} ${escapeHtml(event.time)}<br>
+                    <b>Motivo do match:</b> ${escapeHtml(event.reason)}
+                    ${event.description ? `<br><small><b>Observação:</b> ${escapeHtml(event.description)}</small>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function runAnalysis(forceRebuild) {
+            const segments = getSegments();
+            const restrictions = getRestrictions();
+            const output = document.getElementById('alertsOutput');
+            const meta = JSON.parse(localStorage.getItem('currentDayRepMeta') || '{}');
+
+            if (!segments.length) {
+                document.getElementById('analysisMeta').textContent = '';
+                output.innerHTML = "<p class='alert-card alert-warn'>Não há DayRep ativo. Faça upload em <b>index.html</b> antes de analisar.</p>";
+                return;
+            }
+
+            const currentSignature = meta.loadedAt || 'legacy-dayrep';
+            const saved = JSON.parse(localStorage.getItem(ANALYSIS_KEY) || 'null');
+
+            if (!forceRebuild && saved && saved.dayRepSignature === currentSignature) {
+                renderEvents(saved);
+                return;
+            }
+
+            const events = analyze(segments, restrictions);
+            const payload = {
+                dayRepSignature: currentSignature,
+                dayRepFileName: meta.fileName || '',
+                segmentCount: segments.length,
+                restrictionCount: restrictions.length,
+                generatedAt: new Date().toISOString(),
+                events
+            };
+            localStorage.setItem(ANALYSIS_KEY, JSON.stringify(payload));
+            renderEvents(payload);
+        }
+
+        window.onload = function() {
+            runAnalysis(false);
+        };
     </script>
 </body>
 </html>
