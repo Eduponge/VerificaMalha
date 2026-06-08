@@ -1,42 +1,49 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Restriction Insertions</title>
+    <title>Cadastro de Restrições</title>
     <style>
         body { font-family: Calibri, sans-serif; margin: 20px; background-color: #f4f6f9; }
         h2 { color: #E74C3C; border-bottom: 2px solid #E74C3C; padding-bottom: 5px; }
         .nav { margin-bottom: 20px; background: #fff; padding: 10px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .nav a { margin-right: 15px; text-decoration: none; color: #2c3e50; font-weight: bold; }
         .nav a:hover { color: #3498DB; }
-        .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; background: #fff; padding: 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .form-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; background: #fff; padding: 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
         .form-group { display: flex; flex-direction: column; }
         label { font-weight: bold; margin-bottom: 5px; font-size: 13px; }
         input, select, textarea { padding: 6px; border: 1px solid #ccc; border-radius: 3px; font-family: Calibri; }
-        button { grid-column: span 3; background-color: #E74C3C; color: white; border: none; padding: 10px; cursor: pointer; font-weight: bold; border-radius: 3px; }
+        .actions { grid-column: span 4; display: flex; gap: 10px; }
+        button { background-color: #E74C3C; color: white; border: none; padding: 10px 12px; cursor: pointer; font-weight: bold; border-radius: 3px; }
         button:hover { background-color: #c0392b; }
+        .secondary { background-color: #7f8c8d; }
+        .secondary:hover { background-color: #5d6d6f; }
+        .hint { font-size: 12px; color: #666; margin-bottom: 12px; }
         table { width: 100%; border-collapse: collapse; background: #fff; margin-top: 20px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: center; font-size: 12px; }
-        th { background-color: #E74C3C; color: white; }
-        .delete-btn { background: #ff4d4d; color: white; border: none; padding: 3px 8px; cursor: pointer; border-radius: 3px; }
+        th { background-color: #E74C3C; color: white; position: sticky; top: 0; }
+        .table-wrap { overflow-x: auto; background: #fff; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .edit-btn { background: #3498DB; color: white; border: none; padding: 4px 8px; margin-right: 4px; border-radius: 3px; cursor: pointer; }
+        .delete-btn { background: #ff4d4d; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; }
     </style>
 </head>
 <body>
 
     <div class="nav">
-        <a href="index.html">⏱ Network Timeline</a>
-        <a href="restricoes.html">⚠️ Restriction Insertions</a>
-        <a href="aeronaves.html">✈️ Aircraft Database</a>
-        <a href="aeroportos.html">🏢 Airports Database</a>
-        <a href="analise.html">🔍 Network Analysis</a>
+        <a href="index.html">⏱ Timeline da Malha</a>
+        <a href="restricoes.html">⚠️ Cadastro de Restrições</a>
+        <a href="analise.html">🔍 Análise</a>
     </div>
 
-    <h2>Manage Network Restrictions</h2>
-    
+    <h2>Gerenciar Restrições de Malha</h2>
+    <div class="hint">Campos vazios funcionam como wildcard (não restritivo). Os dados ficam salvos localmente no navegador.</div>
+
     <div class="form-grid">
+        <input type="hidden" id="editingId" value="">
+
         <div class="form-group">
             <label>Restriction Type</label>
-            <select id="resType">
+            <select id="restrictionType">
                 <option value="Customs">Customs</option>
                 <option value="Curfew">Curfew</option>
                 <option value="Country">Country</option>
@@ -49,66 +56,279 @@
                 <option value="NOTAM">NOTAM</option>
                 <option value="AIP SUP Regulation">AIP SUP Regulation</option>
                 <option value="Procedure">Procedure</option>
-                <option value="Max Groung Time">Max Groung Time</option>
+                <option value="Max Ground Time">Max Ground Time</option>
                 <option value="Max Delay Time">Max Delay Time</option>
+                <option value="Outros">Outros</option>
             </select>
         </div>
-        <div class="form-group"><label>Airport / Region / Scope</label><input type="text" id="resScope" placeholder="e.g.: LUX / ELLX"></div>
-        <div class="form-group"><label>Fleet / Acft Affected</label><input type="text" id="resAcft" placeholder="e.g.: VCK or 748"></div>
-        <div class="form-group"><label>Start Date / Time (UTC)</label><input type="datetime-local" id="resStart"></div>
-        <div class="form-group"><label>End Date / Time (UTC)</label><input type="datetime-local" id="resEnd"></div>
-        <div class="form-group"><label>Parameter / Limit Value</label><input type="text" id="resParam" placeholder="e.g.: Max 02:00"></div>
-        <div class="form-group" style="grid-column: span 3;"><label>Description / Rules / Remarks</label><textarea id="resDesc"></textarea></div>
-        <button onclick="salvarRestricao()">Add New Restriction</button>
+        <div class="form-group"><label>ARPT_IATA_Arr</label><input type="text" id="arptIataArr" maxlength="4" placeholder="ex: LUX"></div>
+        <div class="form-group"><label>ARPT_IATA_Orig</label><input type="text" id="arptIataOrig" maxlength="4" placeholder="ex: ORD"></div>
+        <div class="form-group"><label>Weekday</label><input type="text" id="weekday" placeholder="0-6, MON, TUE..."></div>
+
+        <div class="form-group"><label>Day</label><input type="number" id="day" min="1" max="31" placeholder="1-31"></div>
+        <div class="form-group"><label>Month</label><input type="number" id="month" min="1" max="12" placeholder="1-12"></div>
+        <div class="form-group"><label>Year</label><input type="number" id="year" min="2000" max="2100" placeholder="2026"></div>
+        <div class="form-group"><label>Fleet_Type (AC)</label><input type="text" id="fleetType" list="fleetTypeOptions" placeholder="ex: 748 / 74Y / matrícula"></div>
+        <datalist id="fleetTypeOptions"></datalist>
+
+        <div class="form-group"><label>Init_Hour1</label><input type="time" id="initHour1"></div>
+        <div class="form-group"><label>End_Hour1</label><input type="time" id="endHour1"></div>
+        <div class="form-group"><label>Init_Hour2</label><input type="time" id="initHour2"></div>
+        <div class="form-group"><label>End_Hour2</label><input type="time" id="endHour2"></div>
+
+        <div class="form-group"><label>Init_Hour3</label><input type="time" id="initHour3"></div>
+        <div class="form-group"><label>End_Hour3</label><input type="time" id="endHour3"></div>
+        <div class="form-group"><label>Max Delay Time (min)</label><input type="number" id="maxDelayTime" min="0" placeholder="ex: 180"></div>
+        <div class="form-group"><label>Max Ground Time (min)</label><input type="number" id="maxGroundTime" min="0" placeholder="ex: 240"></div>
+
+        <div class="form-group"><label>Min Crew Composition</label><input type="number" id="minCrewComposition" min="0" placeholder="ex: 3"></div>
+        <div class="form-group"><label>Expiration Date / validade</label><input type="date" id="expirationDate"></div>
+        <div class="form-group" style="grid-column: span 2;"><label>Description / remarks</label><textarea id="description" rows="2" placeholder="Regras, premissas e observações"></textarea></div>
+
+        <div class="actions">
+            <button onclick="saveRestriction()">Salvar restrição</button>
+            <button class="secondary" onclick="clearForm()">Limpar formulário</button>
+        </div>
     </div>
 
-    <h3>Active Restrictions</h3>
-    <table id="restricoesTable">
-        <thead>
-            <tr>
-                <th>Type</th>
-                <th>Scope</th>
-                <th>Acft/Fleet</th>
-                <th>Start</th>
-                <th>End</th>
-                <th>Parameter</th>
-                <th>Description</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
-    </table>
+    <h3>Restrições cadastradas</h3>
+    <div class="table-wrap">
+        <table id="restricoesTable">
+            <thead>
+                <tr>
+                    <th>Restriction Type</th>
+                    <th>ARPT_IATA_Arr</th>
+                    <th>ARPT_IATA_Orig</th>
+                    <th>Weekday</th>
+                    <th>Day</th>
+                    <th>Month</th>
+                    <th>Year</th>
+                    <th>H1</th>
+                    <th>H2</th>
+                    <th>H3</th>
+                    <th>Fleet_Type</th>
+                    <th>Max Delay</th>
+                    <th>Max Ground</th>
+                    <th>Min Crew</th>
+                    <th>Expiration</th>
+                    <th>Description</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
 
     <script>
-        function carregarRestricoes() {
-            let list = JSON.parse(localStorage.getItem('restrictions') || '[]');
-            let tbody = document.querySelector('#restricoesTable tbody');
+        const STORAGE_KEY = 'restrictionsV2';
+
+        function normalize(value) {
+            return String(value || '').trim();
+        }
+
+        function toUpper(value) {
+            return normalize(value).toUpperCase();
+        }
+
+        function toNumberOrEmpty(value) {
+            const normalized = normalize(value);
+            if (!normalized) return '';
+            const parsed = Number(normalized);
+            return Number.isFinite(parsed) ? parsed : '';
+        }
+
+        function toISODateOrEmpty(value) {
+            const normalized = normalize(value);
+            return normalized || '';
+        }
+
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function getRestrictions() {
+            const current = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+            if (Array.isArray(current)) return current;
+
+            const legacy = JSON.parse(localStorage.getItem('restrictions') || '[]');
+            if (!Array.isArray(legacy) || !legacy.length) return [];
+
+            const migrated = legacy.map((item, idx) => ({
+                id: item.id || `legacy-${idx}-${Date.now()}`,
+                restrictionType: item.type || 'Outros',
+                arptIataArr: '',
+                arptIataOrig: item.scope || '',
+                weekday: '',
+                day: '',
+                month: '',
+                year: '',
+                initHour1: '',
+                endHour1: '',
+                initHour2: '',
+                endHour2: '',
+                initHour3: '',
+                endHour3: '',
+                fleetType: item.acft || '',
+                maxDelayTime: '',
+                maxGroundTime: '',
+                minCrewComposition: '',
+                expirationDate: item.end ? String(item.end).slice(0, 10) : '',
+                description: item.desc || ''
+            }));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+            return migrated;
+        }
+
+        function setRestrictions(list) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+        }
+
+        function clearForm() {
+            document.getElementById('editingId').value = '';
+            document.getElementById('restrictionType').value = 'Customs';
+            [
+                'arptIataArr','arptIataOrig','weekday','day','month','year','initHour1','endHour1','initHour2','endHour2',
+                'initHour3','endHour3','fleetType','maxDelayTime','maxGroundTime','minCrewComposition','expirationDate','description'
+            ].forEach((id) => {
+                document.getElementById(id).value = '';
+            });
+        }
+
+        function readForm() {
+            const id = document.getElementById('editingId').value || `res-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+            return {
+                id,
+                restrictionType: normalize(document.getElementById('restrictionType').value) || 'Outros',
+                arptIataArr: toUpper(document.getElementById('arptIataArr').value),
+                arptIataOrig: toUpper(document.getElementById('arptIataOrig').value),
+                weekday: toUpper(document.getElementById('weekday').value),
+                day: toNumberOrEmpty(document.getElementById('day').value),
+                month: toNumberOrEmpty(document.getElementById('month').value),
+                year: toNumberOrEmpty(document.getElementById('year').value),
+                initHour1: normalize(document.getElementById('initHour1').value),
+                endHour1: normalize(document.getElementById('endHour1').value),
+                initHour2: normalize(document.getElementById('initHour2').value),
+                endHour2: normalize(document.getElementById('endHour2').value),
+                initHour3: normalize(document.getElementById('initHour3').value),
+                endHour3: normalize(document.getElementById('endHour3').value),
+                fleetType: toUpper(document.getElementById('fleetType').value),
+                maxDelayTime: toNumberOrEmpty(document.getElementById('maxDelayTime').value),
+                maxGroundTime: toNumberOrEmpty(document.getElementById('maxGroundTime').value),
+                minCrewComposition: toNumberOrEmpty(document.getElementById('minCrewComposition').value),
+                expirationDate: toISODateOrEmpty(document.getElementById('expirationDate').value),
+                description: normalize(document.getElementById('description').value)
+            };
+        }
+
+        function formatHourWindow(start, end) {
+            if (!start && !end) return '—';
+            return `${start || '--:--'} - ${end || '--:--'}`;
+        }
+
+        function renderRestrictions() {
+            const list = getRestrictions();
+            const tbody = document.querySelector('#restricoesTable tbody');
             tbody.innerHTML = '';
-            list.forEach((item, index) => {
-                tbody.innerHTML += `<tr><td>${item.type}</td><td>${item.scope}</td><td>${item.acft}</td><td>${item.start.replace('T', ' ')}</td><td>${item.end.replace('T', ' ')}</td><td>${item.param}</td><td>${item.desc}</td><td><button class="delete-btn" onclick="deletarRestricao(${index})">Remove</button></td></tr>`;
+
+            list.forEach((item) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${escapeHtml(item.restrictionType)}</td>
+                    <td>${escapeHtml(item.arptIataArr || '—')}</td>
+                    <td>${escapeHtml(item.arptIataOrig || '—')}</td>
+                    <td>${escapeHtml(item.weekday || '—')}</td>
+                    <td>${item.day === '' ? '—' : item.day}</td>
+                    <td>${item.month === '' ? '—' : item.month}</td>
+                    <td>${item.year === '' ? '—' : item.year}</td>
+                    <td>${escapeHtml(formatHourWindow(item.initHour1, item.endHour1))}</td>
+                    <td>${escapeHtml(formatHourWindow(item.initHour2, item.endHour2))}</td>
+                    <td>${escapeHtml(formatHourWindow(item.initHour3, item.endHour3))}</td>
+                    <td>${escapeHtml(item.fleetType || '—')}</td>
+                    <td>${item.maxDelayTime === '' ? '—' : item.maxDelayTime}</td>
+                    <td>${item.maxGroundTime === '' ? '—' : item.maxGroundTime}</td>
+                    <td>${item.minCrewComposition === '' ? '—' : item.minCrewComposition}</td>
+                    <td>${escapeHtml(item.expirationDate || '—')}</td>
+                    <td>${escapeHtml(item.description || '—')}</td>
+                    <td>
+                        <button class="edit-btn" onclick="editRestriction('${item.id}')">Editar</button>
+                        <button class="delete-btn" onclick="deleteRestriction('${item.id}')">Excluir</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
             });
         }
-        function salvarRestricao() {
-            let list = JSON.parse(localStorage.getItem('restrictions') || '[]');
-            list.push({
-                type: document.getElementById('resType').value,
-                scope: document.getElementById('resScope').value.toUpperCase(),
-                acft: document.getElementById('resAcft').value.toUpperCase(),
-                start: document.getElementById('resStart').value,
-                end: document.getElementById('resEnd').value,
-                param: document.getElementById('resParam').value,
-                desc: document.getElementById('resDesc').value
+
+        function saveRestriction() {
+            const input = readForm();
+            const list = getRestrictions();
+            const index = list.findIndex((item) => item.id === input.id);
+            if (index >= 0) list[index] = input;
+            else list.push(input);
+            setRestrictions(list);
+            renderRestrictions();
+            clearForm();
+        }
+
+        function editRestriction(id) {
+            const list = getRestrictions();
+            const item = list.find((entry) => entry.id === id);
+            if (!item) return;
+
+            document.getElementById('editingId').value = item.id;
+            document.getElementById('restrictionType').value = item.restrictionType || 'Outros';
+            document.getElementById('arptIataArr').value = item.arptIataArr || '';
+            document.getElementById('arptIataOrig').value = item.arptIataOrig || '';
+            document.getElementById('weekday').value = item.weekday || '';
+            document.getElementById('day').value = item.day === '' ? '' : item.day;
+            document.getElementById('month').value = item.month === '' ? '' : item.month;
+            document.getElementById('year').value = item.year === '' ? '' : item.year;
+            document.getElementById('initHour1').value = item.initHour1 || '';
+            document.getElementById('endHour1').value = item.endHour1 || '';
+            document.getElementById('initHour2').value = item.initHour2 || '';
+            document.getElementById('endHour2').value = item.endHour2 || '';
+            document.getElementById('initHour3').value = item.initHour3 || '';
+            document.getElementById('endHour3').value = item.endHour3 || '';
+            document.getElementById('fleetType').value = item.fleetType || '';
+            document.getElementById('maxDelayTime').value = item.maxDelayTime === '' ? '' : item.maxDelayTime;
+            document.getElementById('maxGroundTime').value = item.maxGroundTime === '' ? '' : item.maxGroundTime;
+            document.getElementById('minCrewComposition').value = item.minCrewComposition === '' ? '' : item.minCrewComposition;
+            document.getElementById('expirationDate').value = item.expirationDate || '';
+            document.getElementById('description').value = item.description || '';
+        }
+
+        function deleteRestriction(id) {
+            if (!confirm('Deseja realmente excluir esta restrição?')) return;
+            const list = getRestrictions().filter((item) => item.id !== id);
+            setRestrictions(list);
+            renderRestrictions();
+            if (document.getElementById('editingId').value === id) clearForm();
+        }
+
+        function fillFleetTypeOptions() {
+            const segments = JSON.parse(localStorage.getItem('currentDayRepSegments') || '[]');
+            const values = new Set();
+            segments.forEach((segment) => {
+                if (segment.fleetType) values.add(String(segment.fleetType).toUpperCase());
+                if (segment.reg) values.add(String(segment.reg).toUpperCase());
             });
-            localStorage.setItem('restrictions', JSON.stringify(list));
-            carregarRestricoes();
+            const datalist = document.getElementById('fleetTypeOptions');
+            datalist.innerHTML = '';
+            Array.from(values).sort().forEach((value) => {
+                const option = document.createElement('option');
+                option.value = value;
+                datalist.appendChild(option);
+            });
         }
-        function deletarRestricao(index) {
-            let list = JSON.parse(localStorage.getItem('restrictions') || '[]');
-            list.splice(index, 1);
-            localStorage.setItem('restrictions', JSON.stringify(list));
-            carregarRestricoes();
-        }
-        window.onload = carregarRestricoes;
+
+        window.onload = function() {
+            fillFleetTypeOptions();
+            renderRestrictions();
+        };
     </script>
 </body>
 </html>
