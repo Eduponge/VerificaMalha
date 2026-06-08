@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Restriction Insertions</title>
+    <style>
+        body { font-family: Calibri, sans-serif; margin: 20px; background-color: #f4f6f9; }
+        h2 { color: #E74C3C; border-bottom: 2px solid #E74C3C; padding-bottom: 5px; }
+        .nav { margin-bottom: 20px; background: #fff; padding: 10px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .nav a { margin-right: 15px; text-decoration: none; color: #2c3e50; font-weight: bold; }
+        .nav a:hover { color: #3498DB; }
+        .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; background: #fff; padding: 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .form-group { display: flex; flex-direction: column; }
+        label { font-weight: bold; margin-bottom: 5px; font-size: 13px; }
+        input, select, textarea { padding: 6px; border: 1px solid #ccc; border-radius: 3px; font-family: Calibri; }
+        button { grid-column: span 3; background-color: #E74C3C; color: white; border: none; padding: 10px; cursor: pointer; font-weight: bold; border-radius: 3px; }
+        button:hover { background-color: #c0392b; }
+        table { width: 100%; border-collapse: collapse; background: #fff; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; font-size: 12px; }
+        th { background-color: #E74C3C; color: white; }
+        .delete-btn { background: #ff4d4d; color: white; border: none; padding: 3px 8px; cursor: pointer; border-radius: 3px; }
+    </style>
+</head>
+<body>
+
+    <div class="nav">
+        <a href="index.html">⏱ Network Timeline</a>
+        <a href="restricoes.html">⚠️ Restriction Insertions</a>
+        <a href="aeronaves.html">✈️ Aircraft Database</a>
+        <a href="aeroportos.html">🏢 Airports Database</a>
+        <a href="analise.html">🔍 Network Analysis</a>
+    </div>
+
+    <h2>Manage Network Restrictions</h2>
+    
+    <div class="form-grid">
+        <div class="form-group">
+            <label>Restriction Type</label>
+            <select id="resType">
+                <option value="Customs">Customs</option>
+                <option value="Curfew">Curfew</option>
+                <option value="Country">Country</option>
+                <option value="Acft Type">Acft Type</option>
+                <option value="Crew">Crew</option>
+                <option value="QC">QC</option>
+                <option value="Multiple Ops">Multiple Ops</option>
+                <option value="ATC SLOT">ATC SLOT</option>
+                <option value="ARPT SLOT">ARPT SLOT</option>
+                <option value="NOTAM">NOTAM</option>
+                <option value="AIP SUP Regulation">AIP SUP Regulation</option>
+                <option value="Procedure">Procedure</option>
+                <option value="Max Groung Time">Max Groung Time</option>
+                <option value="Max Delay Time">Max Delay Time</option>
+            </select>
+        </div>
+        <div class="form-group"><label>Airport / Region / Scope</label><input type="text" id="resScope" placeholder="e.g.: LUX / ELLX"></div>
+        <div class="form-group"><label>Fleet / Acft Affected</label><input type="text" id="resAcft" placeholder="e.g.: VCK or 748"></div>
+        <div class="form-group"><label>Start Date / Time (UTC)</label><input type="datetime-local" id="resStart"></div>
+        <div class="form-group"><label>End Date / Time (UTC)</label><input type="datetime-local" id="resEnd"></div>
+        <div class="form-group"><label>Parameter / Limit Value</label><input type="text" id="resParam" placeholder="e.g.: Max 02:00"></div>
+        <div class="form-group" style="grid-column: span 3;"><label>Description / Rules / Remarks</label><textarea id="resDesc"></textarea></div>
+        <button onclick="salvarRestricao()">Add New Restriction</button>
+    </div>
+
+    <h3>Active Restrictions</h3>
+    <table id="restricoesTable">
+        <thead>
+            <tr>
+                <th>Type</th>
+                <th>Scope</th>
+                <th>Acft/Fleet</th>
+                <th>Start</th>
+                <th>End</th>
+                <th>Parameter</th>
+                <th>Description</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        function carregarRestricoes() {
+            let list = JSON.parse(localStorage.getItem('restrictions') || '[]');
+            let tbody = document.querySelector('#restricoesTable tbody');
+            tbody.innerHTML = '';
+            list.forEach((item, index) => {
+                tbody.innerHTML += `<tr><td>${item.type}</td><td>${item.scope}</td><td>${item.acft}</td><td>${item.start.replace('T', ' ')}</td><td>${item.end.replace('T', ' ')}</td><td>${item.param}</td><td>${item.desc}</td><td><button class="delete-btn" onclick="deletarRestricao(${index})">Remove</button></td></tr>`;
+            });
+        }
+        function salvarRestricao() {
+            let list = JSON.parse(localStorage.getItem('restrictions') || '[]');
+            list.push({
+                type: document.getElementById('resType').value,
+                scope: document.getElementById('resScope').value.toUpperCase(),
+                acft: document.getElementById('resAcft').value.toUpperCase(),
+                start: document.getElementById('resStart').value,
+                end: document.getElementById('resEnd').value,
+                param: document.getElementById('resParam').value,
+                desc: document.getElementById('resDesc').value
+            });
+            localStorage.setItem('restrictions', JSON.stringify(list));
+            carregarRestricoes();
+        }
+        function deletarRestricao(index) {
+            let list = JSON.parse(localStorage.getItem('restrictions') || '[]');
+            list.splice(index, 1);
+            localStorage.setItem('restrictions', JSON.stringify(list));
+            carregarRestricoes();
+        }
+        window.onload = carregarRestricoes;
+    </script>
+</body>
+</html>

@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Restriction Impact Dashboard</title>
+    <style>
+        body { font-family: Calibri, sans-serif; margin: 20px; background-color: #f4f6f9; }
+        h2 { color: #D35400; border-bottom: 2px solid #D35400; padding-bottom: 5px; }
+        .nav { margin-bottom: 20px; background: #fff; padding: 10px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .nav a { margin-right: 15px; text-decoration: none; color: #2c3e50; font-weight: bold; }
+        .nav a:hover { color: #3498DB; }
+        .container { background: #fff; padding: 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .alert-card { padding: 15px; margin-bottom: 10px; border-radius: 4px; border-left: 6px solid; font-size: 14px; }
+        .alert-high { background-color: #FDEDEC; border-color: #E74C3C; color: #c0392b; }
+        .alert-warn { background-color: #FEF9E7; border-color: #F39C12; color: #d35400; }
+        .no-alerts { color: #27AE60; font-weight: bold; font-size: 16px; }
+    </style>
+</head>
+<body>
+
+    <div class="nav">
+        <a href="index.html">⏱ Network Timeline</a>
+        <a href="restricoes.html">⚠️ Restriction Insertions</a>
+        <a href="aeronaves.html">✈️ Aircraft Database</a>
+        <a href="aeroportos.html">🏢 Airports Database</a>
+        <a href="analise.html">🔍 Network Analysis</a>
+    </div>
+
+    <div class="container">
+        <h2>Network Restrictions vs. DayRep Impact Analysis</h2>
+        <p>Alerts generated from cross-referencing active schedule with registered restrictions:</p>
+        <div id="alertsOutput"></div>
+    </div>
+
+    <script>
+        function analisarMalha() {
+            const flights = JSON.parse(localStorage.getItem('currentDayRep') || '[]');
+            const restrictions = JSON.parse(localStorage.getItem('restrictions') || '[]');
+            const output = document.getElementById('alertsOutput');
+            if (flights.length === 0) {
+                output.innerHTML = "<p class='alert-warn'>No active DayRep schedule. Please upload data in the 'Network Timeline' tab first.</p>";
+                return;
+            }
+            let alertHtml = '';
+            let alertCount = 0;
+            flights.forEach(flight => {
+                restrictions.forEach(res => {
+                    const scopeMatch = res.scope === flight.dep || res.scope === flight.arr;
+                    const acftMatch = res.acft === "" || flight.reg.includes(res.acft);
+                    if (scopeMatch && acftMatch) {
+                        alertCount++;
+                        let severityClass = ['Curfew', 'ATC SLOT', 'ARPT SLOT'].includes(res.type) ? 'alert-high' : 'alert-warn';
+                        alertHtml += `
+                            <div class="alert-card ${severityClass}">
+                                <strong>⚠️ IMPACT ALERT [${res.type.toUpperCase()}]</strong><br>
+                                Flight <b>${flight.flt}</b> (${flight.reg}) on route <b>${flight.dep} ➔ ${flight.arr}</b> intercepted a restriction for scope <b>${res.scope}</b>.<br>
+                                <small><b>Window:</b> ${res.start.replace('T', ' ')} to ${res.end.replace('T', ' ')} | <b>Rule:</b> ${res.desc} (${res.param})</small>
+                            </div>`;
+                    }
+                });
+            });
+            output.innerHTML = alertCount === 0 ? "<p class='no-alerts'>✅ No restriction violations found for the current schedule!</p>" : alertHtml;
+        }
+        window.onload = analisarMalha;
+    </script>
+</body>
+</html>
