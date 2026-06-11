@@ -338,6 +338,28 @@
 
             reader.readAsText(file);
         }
+
+        window.onload = function() {
+            const savedSegments = localStorage.getItem('currentDayRepSegments');
+            if (!savedSegments) return;
+            try {
+                const segments = JSON.parse(savedSegments);
+                if (!Array.isArray(segments) || !segments.length) return;
+                const metaRaw = localStorage.getItem('currentDayRepMeta');
+                const meta = metaRaw ? JSON.parse(metaRaw) : {};
+                const fileName = (meta && meta.fileName) ? meta.fileName : 'DayRep';
+                renderTimeline(segments, fileName);
+                if (meta && meta.loadedAt) {
+                    const output = document.getElementById('timelineOutput');
+                    const info = document.createElement('p');
+                    info.className = 'small';
+                    info.textContent = `Timeline restaurada do cache — arquivo: ${fileName}, carregado em: ${new Date(meta.loadedAt).toLocaleString('pt-BR')}`;
+                    output.insertBefore(info, output.firstChild);
+                }
+            } catch (e) {
+                console.warn('Falha ao restaurar timeline do cache:', e);
+            }
+        };
     </script>
 </body>
 </html>
