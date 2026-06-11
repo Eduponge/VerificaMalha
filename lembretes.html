@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Eventos e Lembretes</title>
+    <style>
+        body { font-family: Calibri, sans-serif; margin: 20px; background-color: #f4f6f9; }
+        h2 { color: #8E44AD; border-bottom: 2px solid #8E44AD; padding-bottom: 5px; }
+        h3 { color: #6C3483; margin-top: 0; }
+        .nav { margin-bottom: 20px; background: #fff; padding: 10px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .nav a { margin-right: 15px; text-decoration: none; color: #2c3e50; font-weight: bold; }
+        .nav a:hover { color: #3498DB; }
+        .form-section { background: #fff; padding: 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
+        .form-group { display: flex; flex-direction: column; }
+        .form-group.span2 { grid-column: span 2; }
+        .form-group.span4 { grid-column: span 4; }
+        label { font-weight: bold; margin-bottom: 5px; font-size: 13px; color: #2c3e50; }
+        input, select, textarea { padding: 7px; border: 1px solid #ccc; border-radius: 3px; font-family: Calibri; font-size: 13px; }
+        .btn-primary { background-color: #8E44AD; color: white; border: none; padding: 10px 16px; cursor: pointer; font-weight: bold; border-radius: 3px; font-size: 13px; }
+        .btn-primary:hover { background-color: #7D3C98; }
+        .btn-secondary { background-color: #7f8c8d; color: white; border: none; padding: 10px 12px; cursor: pointer; font-weight: bold; border-radius: 3px; font-size: 13px; }
+        .btn-secondary:hover { background-color: #5d6d6f; }
+        .btn-row { display: flex; gap: 10px; grid-column: span 4; margin-top: 4px; }
+        .hint { font-size: 12px; color: #666; margin-bottom: 14px; }
+        /* Alert banners */
+        .alerts-section { margin-bottom: 20px; }
+        .alert-banner { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 5px; margin-bottom: 8px; font-size: 14px; border-left: 6px solid; }
+        .alert-overdue { background-color: #FDEDEC; border-color: #E74C3C; color: #7b241c; }
+        .alert-upcoming { background-color: #FEF9E7; border-color: #F39C12; color: #7d6608; }
+        .alert-dismiss-btn { margin-left: auto; background: transparent; border: 1px solid currentColor; border-radius: 3px; padding: 3px 9px; cursor: pointer; font-size: 12px; color: inherit; }
+        .alert-dismiss-btn:hover { opacity: 0.7; }
+        /* Event list */
+        .list-section { background: #fff; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow: hidden; }
+        .list-header { background: #8E44AD; color: white; padding: 10px 16px; font-weight: bold; font-size: 14px; display: flex; align-items: center; justify-content: space-between; }
+        .event-card { border-bottom: 1px solid #eee; padding: 12px 16px; display: flex; align-items: flex-start; gap: 12px; }
+        .event-card:last-child { border-bottom: none; }
+        .event-card.status-overdue { border-left: 5px solid #E74C3C; }
+        .event-card.status-upcoming { border-left: 5px solid #F39C12; }
+        .event-card.status-future { border-left: 5px solid #27AE60; }
+        .event-card.status-dismissed { border-left: 5px solid #bdc3c7; opacity: 0.65; }
+        .event-info { flex: 1; }
+        .event-title { font-weight: bold; font-size: 14px; color: #2c3e50; }
+        .event-meta { font-size: 12px; color: #555; margin-top: 3px; }
+        .event-category { display: inline-block; font-size: 11px; font-weight: bold; padding: 2px 7px; border-radius: 10px; margin-right: 6px; }
+        .cat-flight-check { background: #D6EAF8; color: #1A5276; }
+        .cat-crew-wakeup { background: #D5F5E3; color: #1E8449; }
+        .cat-generic { background: #F2F3F4; color: #5D6D7E; }
+        .cat-other { background: #FDEBD0; color: #784212; }
+        .event-status-badge { font-size: 11px; font-weight: bold; padding: 2px 7px; border-radius: 10px; }
+        .badge-overdue { background: #FDEDEC; color: #E74C3C; }
+        .badge-upcoming { background: #FEF9E7; color: #D4AC0D; }
+        .badge-future { background: #EAFAF1; color: #27AE60; }
+        .badge-dismissed { background: #F2F3F4; color: #7F8C8D; }
+        .event-actions { display: flex; flex-direction: column; gap: 5px; align-items: flex-end; }
+        .edit-btn { background: #3498DB; color: white; border: none; padding: 4px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; }
+        .edit-btn:hover { background: #2980B9; }
+        .delete-btn { background: #ff4d4d; color: white; border: none; padding: 4px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; }
+        .delete-btn:hover { background: #c0392b; }
+        .dismiss-toggle-btn { background: #7f8c8d; color: white; border: none; padding: 4px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; }
+        .dismiss-toggle-btn:hover { background: #5d6d6f; }
+        .empty-list { padding: 20px; text-align: center; color: #7f8c8d; font-size: 14px; }
+        .clock { font-size: 13px; color: #7f8c8d; font-weight: normal; }
+        .filter-row { display: flex; gap: 10px; align-items: center; padding: 10px 16px; background: #f8f0ff; border-bottom: 1px solid #e8daef; }
+        .filter-row label { font-size: 12px; margin-bottom: 0; font-weight: bold; color: #6C3483; }
+        .filter-row select { font-size: 12px; padding: 4px; }
+    </style>
+</head>
+<body>
+
+    <div class="nav">
+        <a href="index.html">⏱ Timeline da Malha</a>
+        <a href="restricoes.html">⚠️ Cadastro de Restrições</a>
+        <a href="analise.html">🔍 Análise</a>
+        <a href="lembretes.html">🔔 Eventos e Lembretes</a>
+    </div>
+
+    <h2>🔔 Eventos e Lembretes</h2>
+    <div class="hint">Cadastre eventos e lembretes com horário. Alertas serão exibidos nesta tela quando o horário se aproximar ou chegar. Os dados ficam salvos localmente no navegador.</div>
+
+    <!-- Alert banners area -->
+    <div class="alerts-section" id="alertsBanners"></div>
+
+    <!-- Form -->
+    <div class="form-section">
+        <h3>Cadastrar / Editar Lembrete</h3>
+        <div class="form-grid">
+            <input type="hidden" id="editingId" value="">
+
+            <div class="form-group span2">
+                <label>Título / Descrição</label>
+                <input type="text" id="eventTitle" placeholder="ex: 3 hours check – voos saindo de LUX" maxlength="200">
+            </div>
+            <div class="form-group">
+                <label>Categoria</label>
+                <select id="eventCategory">
+                    <option value="Flight Check">✈️ Flight Check</option>
+                    <option value="Crew Wakeup">😴 Crew Wakeup</option>
+                    <option value="Generic" selected>📌 Generic</option>
+                    <option value="Other">🗂️ Other</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Data e Hora do Alerta</label>
+                <input type="datetime-local" id="eventDatetime">
+            </div>
+
+            <div class="form-group span4">
+                <label>Notas / Observações (opcional)</label>
+                <textarea id="eventNote" rows="2" placeholder="Detalhes adicionais, ex: flight CV902 – departs LUX 06:30 UTC"></textarea>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn-primary" onclick="saveEvent()">💾 Salvar lembrete</button>
+                <button class="btn-secondary" onclick="clearForm()">✖ Limpar formulário</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Event list -->
+    <div class="list-section">
+        <div class="list-header">
+            <span>Lembretes cadastrados</span>
+            <span class="clock" id="clockDisplay"></span>
+        </div>
+        <div class="filter-row">
+            <label>Filtrar por status:</label>
+            <select id="filterStatus" onchange="renderList()">
+                <option value="all">Todos</option>
+                <option value="active">Ativos (pendentes)</option>
+                <option value="overdue">Vencidos</option>
+                <option value="upcoming">Próximos (≤30 min)</option>
+                <option value="future">Futuros</option>
+                <option value="dismissed">Dispensados</option>
+            </select>
+            <label style="margin-left:16px;">Filtrar por categoria:</label>
+            <select id="filterCategory" onchange="renderList()">
+                <option value="all">Todas</option>
+                <option value="Flight Check">✈️ Flight Check</option>
+                <option value="Crew Wakeup">😴 Crew Wakeup</option>
+                <option value="Generic">📌 Generic</option>
+                <option value="Other">🗂️ Other</option>
+            </select>
+        </div>
+        <div id="eventList"></div>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'lembretesV1';
+        const UPCOMING_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+        const REFRESH_INTERVAL_MS = 30000; // refresh every 30 seconds
+        const STATUS_ORDER = { overdue: 0, upcoming: 1, future: 2, dismissed: 3 };
+        let alertInterval = null;
+
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function getEvents() {
+            try {
+                const data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+                return Array.isArray(data) ? data : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function setEvents(list) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+        }
+
+        function getStatus(event) {
+            if (event.dismissed) return 'dismissed';
+            if (!event.datetime) return 'future';
+            const now = Date.now();
+            const eventTime = new Date(event.datetime).getTime();
+            if (isNaN(eventTime)) return 'future';
+            if (eventTime <= now) return 'overdue';
+            if (eventTime - now <= UPCOMING_WINDOW_MS) return 'upcoming';
+            return 'future';
+        }
+
+        function formatDatetime(isoString) {
+            if (!isoString) return '—';
+            const d = new Date(isoString);
+            if (isNaN(d.getTime())) return isoString;
+            return d.toLocaleString('pt-BR', { hour12: false, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function timeUntil(isoString) {
+            if (!isoString) return '';
+            const now = Date.now();
+            const eventTime = new Date(isoString).getTime();
+            if (isNaN(eventTime)) return '';
+            const diff = eventTime - now;
+            if (diff < 0) {
+                const ago = -diff;
+                const h = Math.floor(ago / 3600000);
+                const m = Math.floor((ago % 3600000) / 60000);
+                return h > 0 ? `há ${h}h ${m}min` : `há ${m}min`;
+            }
+            const h = Math.floor(diff / 3600000);
+            const m = Math.floor((diff % 3600000) / 60000);
+            return h > 0 ? `em ${h}h ${m}min` : `em ${m}min`;
+        }
+
+        function categoryClass(category) {
+            const map = {
+                'Flight Check': 'cat-flight-check',
+                'Crew Wakeup': 'cat-crew-wakeup',
+                'Generic': 'cat-generic',
+                'Other': 'cat-other'
+            };
+            return map[category] || 'cat-generic';
+        }
+
+        function statusBadgeClass(status) {
+            const map = {
+                overdue: 'badge-overdue',
+                upcoming: 'badge-upcoming',
+                future: 'badge-future',
+                dismissed: 'badge-dismissed'
+            };
+            return map[status] || 'badge-future';
+        }
+
+        function statusLabel(status) {
+            const map = {
+                overdue: '🔴 Vencido',
+                upcoming: '🟡 Próximo',
+                future: '🟢 Agendado',
+                dismissed: '⚪ Dispensado'
+            };
+            return map[status] || status;
+        }
+
+        function clearForm() {
+            document.getElementById('editingId').value = '';
+            document.getElementById('eventTitle').value = '';
+            document.getElementById('eventCategory').value = 'Generic';
+            document.getElementById('eventDatetime').value = '';
+            document.getElementById('eventNote').value = '';
+        }
+
+        function readForm() {
+            const id = document.getElementById('editingId').value || `rem-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+            return {
+                id,
+                title: String(document.getElementById('eventTitle').value || '').trim(),
+                category: document.getElementById('eventCategory').value || 'Generic',
+                datetime: document.getElementById('eventDatetime').value || '',
+                note: String(document.getElementById('eventNote').value || '').trim(),
+                dismissed: false
+            };
+        }
+
+        function saveEvent() {
+            const input = readForm();
+            if (!input.title) { alert('Preencha o título do lembrete.'); return; }
+            if (!input.datetime) { alert('Preencha a data e hora do alerta.'); return; }
+            const list = getEvents();
+            const existingIndex = list.findIndex((item) => item.id === input.id);
+            if (existingIndex >= 0) {
+                input.dismissed = list[existingIndex].dismissed;
+                list[existingIndex] = input;
+            } else {
+                list.push(input);
+            }
+            setEvents(list);
+            renderList();
+            renderAlerts();
+            clearForm();
+        }
+
+        function editEvent(id) {
+            const item = getEvents().find((e) => e.id === id);
+            if (!item) return;
+            document.getElementById('editingId').value = item.id;
+            document.getElementById('eventTitle').value = item.title || '';
+            document.getElementById('eventCategory').value = item.category || 'Generic';
+            document.getElementById('eventDatetime').value = item.datetime || '';
+            document.getElementById('eventNote').value = item.note || '';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function deleteEvent(id) {
+            if (!confirm('Deseja realmente excluir este lembrete?')) return;
+            setEvents(getEvents().filter((e) => e.id !== id));
+            renderList();
+            renderAlerts();
+            if (document.getElementById('editingId').value === id) clearForm();
+        }
+
+        function toggleDismiss(id) {
+            const list = getEvents();
+            const item = list.find((e) => e.id === id);
+            if (!item) return;
+            item.dismissed = !item.dismissed;
+            setEvents(list);
+            renderList();
+            renderAlerts();
+        }
+
+        function dismissFromBanner(id) {
+            const list = getEvents();
+            const item = list.find((e) => e.id === id);
+            if (!item) return;
+            item.dismissed = true;
+            setEvents(list);
+            renderList();
+            renderAlerts();
+        }
+
+        function renderAlerts() {
+            const container = document.getElementById('alertsBanners');
+            const events = getEvents();
+            const alertItems = events.filter((e) => {
+                const s = getStatus(e);
+                return s === 'overdue' || s === 'upcoming';
+            });
+
+            if (!alertItems.length) {
+                container.innerHTML = '';
+                return;
+            }
+
+            container.innerHTML = alertItems.map((e) => {
+                const status = getStatus(e);
+                const cls = status === 'overdue' ? 'alert-overdue' : 'alert-upcoming';
+                const icon = status === 'overdue' ? '🔴' : '🟡';
+                const label = status === 'overdue' ? 'VENCIDO' : 'PRÓXIMO';
+                const time = timeUntil(e.datetime);
+                return `
+                    <div class="alert-banner ${cls}">
+                        <span>${icon} <strong>[${label}]</strong> ${escapeHtml(e.title)}
+                            &nbsp;—&nbsp; <em>${escapeHtml(formatDatetime(e.datetime))}</em>
+                            ${time ? `&nbsp;(${escapeHtml(time)})` : ''}
+                            ${e.note ? `<br><small>📝 ${escapeHtml(e.note)}</small>` : ''}
+                        </span>
+                        <button class="alert-dismiss-btn" onclick="dismissFromBanner('${escapeHtml(e.id)}')">Dispensar</button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderList() {
+            const container = document.getElementById('eventList');
+            const filterStatus = document.getElementById('filterStatus').value;
+            const filterCategory = document.getElementById('filterCategory').value;
+
+            let events = getEvents();
+
+            events.sort((a, b) => {
+                const sa = STATUS_ORDER[getStatus(a)] ?? STATUS_ORDER.future;
+                const sb = STATUS_ORDER[getStatus(b)] ?? STATUS_ORDER.future;
+                if (sa !== sb) return sa - sb;
+                const da = new Date(a.datetime).getTime() || 0;
+                const db = new Date(b.datetime).getTime() || 0;
+                return da - db;
+            });
+
+            if (filterStatus !== 'all') {
+                if (filterStatus === 'active') {
+                    events = events.filter((e) => {
+                        const s = getStatus(e);
+                        return s === 'overdue' || s === 'upcoming' || s === 'future';
+                    });
+                } else {
+                    events = events.filter((e) => getStatus(e) === filterStatus);
+                }
+            }
+
+            if (filterCategory !== 'all') {
+                events = events.filter((e) => e.category === filterCategory);
+            }
+
+            if (!events.length) {
+                container.innerHTML = '<div class="empty-list">Nenhum lembrete encontrado para os filtros selecionados.</div>';
+                return;
+            }
+
+            container.innerHTML = events.map((e) => {
+                const status = getStatus(e);
+                const catCls = categoryClass(e.category);
+                const badgeCls = statusBadgeClass(status);
+                const time = timeUntil(e.datetime);
+                const dismissLabel = e.dismissed ? 'Reativar' : 'Dispensar';
+                return `
+                    <div class="event-card status-${status}">
+                        <div class="event-info">
+                            <div class="event-title">
+                                <span class="event-category ${catCls}">${escapeHtml(e.category)}</span>
+                                <span class="event-status-badge ${badgeCls}">${statusLabel(status)}</span>
+                                ${escapeHtml(e.title)}
+                            </div>
+                            <div class="event-meta">
+                                📅 ${escapeHtml(formatDatetime(e.datetime))}
+                                ${time ? `&nbsp;·&nbsp; ${escapeHtml(time)}` : ''}
+                                ${e.note ? `<br>📝 ${escapeHtml(e.note)}` : ''}
+                            </div>
+                        </div>
+                        <div class="event-actions">
+                            <button class="edit-btn" onclick="editEvent('${escapeHtml(e.id)}')">Editar</button>
+                            <button class="dismiss-toggle-btn" onclick="toggleDismiss('${escapeHtml(e.id)}')">${dismissLabel}</button>
+                            <button class="delete-btn" onclick="deleteEvent('${escapeHtml(e.id)}')">Excluir</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateClock() {
+            const el = document.getElementById('clockDisplay');
+            if (el) {
+                el.textContent = new Date().toLocaleString('pt-BR', { hour12: false });
+            }
+        }
+
+        function tick() {
+            updateClock();
+            renderAlerts();
+            renderList();
+        }
+
+        function seedExamples() {
+            const existing = getEvents();
+            if (existing.length > 0) return;
+
+            const now = new Date();
+            function isoOffset(hoursFromNow) {
+                const d = new Date(now.getTime() + hoursFromNow * 3600000);
+                const pad = (n) => String(n).padStart(2, '0');
+                return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            }
+
+            const examples = [
+                {
+                    id: `rem-example-1`,
+                    title: '3 hours check – flight departing from LUX',
+                    category: 'Flight Check',
+                    datetime: isoOffset(2.5),
+                    note: 'Perform 3-hour pre-departure check for all flights departing LUX. Verify cargo docs, fuel uplift and crew rest.',
+                    dismissed: false
+                },
+                {
+                    id: `rem-example-2`,
+                    title: 'Crew wakeup call – 2h prior to LUX departure',
+                    category: 'Crew Wakeup',
+                    datetime: isoOffset(1.5),
+                    note: 'Call crew 2 hours before scheduled departure from LUX.',
+                    dismissed: false
+                },
+                {
+                    id: `rem-example-3`,
+                    title: 'Generic reminder – sample time-based item',
+                    category: 'Generic',
+                    datetime: isoOffset(4),
+                    note: 'Any other item that should be remembered based on time.',
+                    dismissed: false
+                }
+            ];
+            setEvents(examples);
+        }
+
+        window.onload = function() {
+            seedExamples();
+            tick();
+            alertInterval = setInterval(tick, REFRESH_INTERVAL_MS);
+        };
+    </script>
+</body>
+</html>
