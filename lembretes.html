@@ -64,7 +64,7 @@
         .filter-row { display: flex; gap: 10px; align-items: center; padding: 10px 16px; background: #f8f0ff; border-bottom: 1px solid #e8daef; }
         .filter-row label { font-size: 12px; margin-bottom: 0; font-weight: bold; color: #6C3483; }
         .filter-row select { font-size: 12px; padding: 4px; }
-        /* PDF import section */
+        /* TXT import section */
         .pdf-section { background: #fff; padding: 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
         .pdf-section h3 { color: #6C3483; margin-top: 0; }
         .upload-area { border: 2px dashed #8E44AD; padding: 18px; text-align: center; background: #f9f0ff; border-radius: 5px; margin-bottom: 12px; }
@@ -96,13 +96,13 @@
     <!-- Alert banners area -->
     <div class="alerts-section" id="alertsBanners"></div>
 
-    <!-- PDF Import -->
+    <!-- TXT Import -->
     <div class="pdf-section">
-        <h3>📄 Importar DayList (PDF)</h3>
-        <div class="hint" style="margin-bottom:12px;" id="daylistHint">Faça upload do DayList para criar automaticamente os lembretes de <strong>Flight Check</strong> (ETD −3h) e <strong>Crew Wake Up</strong> (ETD −2h).</div>
+        <h3>📄 Importar DayList (TXT)</h3>
+        <div class="hint" style="margin-bottom:12px;" id="daylistHint">Faça upload do DayList em formato TXT para criar automaticamente os lembretes de <strong>Flight Check</strong> (ETD −3h) e <strong>Crew Wake Up</strong> (ETD −2h).</div>
         <div class="upload-area">
-            <label class="custom-upload-label" for="daylistFile">📁 Escolher DayList PDF</label>
-            <input type="file" id="daylistFile" accept=".pdf" onchange="onDayListFileSelected()">
+            <label class="custom-upload-label" for="daylistFile">📁 Escolher DayList TXT</label>
+            <input type="file" id="daylistFile" accept=".txt" onchange="onDayListFileSelected()">
             <div class="pdf-file-name" id="daylistFileName">Nenhum arquivo selecionado</div>
         </div>
         <button class="btn-primary" onclick="importDayList()">⬇️ Importar lembretes do DayList</button>
@@ -565,7 +565,7 @@
             const el = document.getElementById('daylistHint');
             if (!el) return;
             const regs = Array.from(EARLY_WAKEUP_REGS).join(' / ');
-            el.innerHTML = `Faça upload do DayList para criar automaticamente os lembretes de <strong>Flight Check</strong> (ETD −3h) e <strong>Crew Wake Up</strong> (ETD −2h, ou −2h15m para ${regs}).`;
+            el.innerHTML = `Faça upload do DayList TXT para criar automaticamente os lembretes de <strong>Flight Check</strong> (ETD −3h) e <strong>Crew Wake Up</strong> (ETD −2h, ou −2h15m para ${regs}).`;
         })();
 
         function onDayListFileSelected() {
@@ -578,37 +578,22 @@
 
         async function importDayList() {
             const file = document.getElementById('daylistFile').files[0];
-            if (!file) { alert('Selecione o arquivo DayList PDF primeiro.'); return; }
+            if (!file) { alert('Selecione o arquivo DayList TXT primeiro.'); return; }
 
             const statusEl = document.getElementById('pdfStatus');
-            statusEl.innerHTML = '<span class="pdf-status info">⏳ Lendo PDF…</span>';
+            statusEl.innerHTML = '<span class="pdf-status info">⏳ Lendo TXT…</span>';
 
             try {
-                const arrayBuffer = await file.arrayBuffer();
-                // PDF.js loaded via CDN (window['pdfjs-dist/build/pdf'])
-                const pdfjsLib = window['pdfjs-dist/build/pdf'];
-                if (!pdfjsLib) {
-                    statusEl.innerHTML = '<span class="pdf-status err">❌ Biblioteca PDF.js não carregada. Verifique a conexão.</span>';
-                    return;
-                }
-                const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-                const pdf = await loadingTask.promise;
+                const rawText = await file.text();
 
-                let allText = '';
-                for (let p = 1; p <= pdf.numPages; p++) {
-                    const page = await pdf.getPage(p);
-                    const content = await page.getTextContent();
-                    allText += content.items.map((item) => item.str).join(' ') + '\n';
-                }
-
-                if (!allText.trim()) {
-                    statusEl.innerHTML = '<span class="pdf-status err">⚠️ Este PDF não contém texto extraível (provavelmente baseado em imagens). Insira os dados manualmente ou utilize um PDF com camada de texto.</span>';
+                if (!rawText.trim()) {
+                    statusEl.innerHTML = '<span class="pdf-status err">⚠️ O arquivo TXT está vazio.</span>';
                     return;
                 }
 
-                const flights = parseDayListText(allText);
+                const flights = parseDayListText(rawText);
                 if (!flights.length) {
-                    statusEl.innerHTML = '<span class="pdf-status err">⚠️ Não foram encontrados voos no arquivo. Verifique se é um DayList válido.</span>';
+                    statusEl.innerHTML = '<span class="pdf-status err">⚠️ Não foram encontrados voos no arquivo. Verifique se é um DayList TXT válido.</span>';
                     return;
                 }
 
@@ -617,17 +602,21 @@
                 renderAlerts();
                 statusEl.innerHTML = `<span class="pdf-status ok">✅ ${added} lembrete(s) criado(s) a partir de ${flights.length} voo(s).</span>`;
             } catch (err) {
-                statusEl.innerHTML = `<span class="pdf-status err">❌ Erro ao processar o PDF: ${escapeHtml(String(err.message || err))}</span>`;
+                statusEl.innerHTML = `<span class="pdf-status err">❌ Erro ao processar o TXT: ${escapeHtml(String(err.message || err))}</span>`;
             }
         }
 
         /**
-         * Parse DayList plain text and return an array of flight objects.
-         * Each flight: { reg, ades, std, etd, day, month, year }
+         * Parse DayList plain text (TXT export) and return an array of flight objects.
+         * Each flight: { reg, flt, ades, std, etd, day, month, year }
          *
-         * DayList format (two lines per flight):
-         *   Line A: LX-XXX  ADES  HH:MM  …   ← registration, destination, STD
-         *   Line B: CV####  HH.MM  …          ← flight number, ETD (dot-separated)
+         * DayList TXT format per flight (one line each):
+         *   Line 1: LX-XXX            ← standalone registration
+         *   Line 2: CVNNNN ADES HH:MM ← flight number, destination (ADES), STD
+         *   Line 3: HH.MM …           ← ETD in dot-separated format
+         *
+         * The document date (dd/mm/yyyy) appears just after the "Day List" heading.
+         * All flights depart from LUX.
          */
         function parseDayListText(rawText) {
             const flights = [];
@@ -639,60 +628,62 @@
             const docMonth = parseInt(dateMatch[2], 10);
             const docYear  = parseInt(dateMatch[3], 10);
 
-            // Split into lines (handles various separators produced by PDF.js)
             const lines = rawText
                 .replace(/\r\n?/g, '\n')
                 .split('\n')
                 .map((l) => l.trim())
                 .filter(Boolean);
 
-            let pending = null; // registration line awaiting its ETD line
+            let i = 0;
+            while (i < lines.length) {
+                // Standalone registration line: exactly "LX-XXXX"
+                if (/^LX-[A-Z0-9]{2,5}$/.test(lines[i])) {
+                    const reg = lines[i];
+                    i++;
 
-            for (const line of lines) {
-                // ── Registration line: must contain LX-XXX ──────────────────
-                const regM = line.match(/\b(LX-[A-Z0-9]{2,4})\b/);
-                if (regM) {
-                    // Save previous flight that had no matching ETD line
-                    if (pending && pending.etd) flights.push(pending);
+                    let flt = '', ades = '', std = '', etd = '';
 
-                    const reg = regM[1];
-                    const afterReg = line.slice(line.indexOf(regM[0]) + regM[0].length);
+                    // Scan subsequent lines until the next registration or end of file
+                    while (i < lines.length && !/^LX-[A-Z0-9]{2,5}$/.test(lines[i])) {
+                        const l = lines[i];
 
-                    // ADES: first standalone 2-4 uppercase letter group after REG
-                    const adesM = afterReg.match(/\b([A-Z]{2,4})\b/);
-                    const ades = adesM ? adesM[1] : '';
+                        // Flight number: 1-2 uppercase letters followed by 3-6 digits (e.g. CV7956, C80016)
+                        if (!flt) {
+                            const fltM = l.match(/\b(CV\d{3,5}|[A-Z]{1,2}\d{4,6})\b/);
+                            if (fltM) flt = fltM[1];
+                        }
 
-                    // STD: first HH:MM time after REG
-                    const stdM = afterReg.match(/\b(\d{1,2}:\d{2})\b/);
-                    const std = stdM ? stdM[1] : '';
+                        // ADES: standalone 2-4 uppercase letter word (not a zone code like Z01)
+                        if (!ades) {
+                            const adesM = l.match(/\b([A-Z]{2,4})\b/);
+                            if (adesM && !/^Z\d+$/.test(adesM[1])) ades = adesM[1];
+                        }
 
-                    pending = { reg, ades, std, etd: '', day: docDay, month: docMonth, year: docYear };
+                        // STD: first HH:MM (colon-separated) time
+                        if (!std) {
+                            const stdM = l.match(/\b(\d{1,2}:\d{2})\b/);
+                            if (stdM) std = stdM[1];
+                        }
+
+                        // ETD: first HH.MM (dot-separated) time — distinct from STD
+                        if (!etd) {
+                            const etdM = l.match(/\b(\d{1,2})\.(\d{2})\b/);
+                            if (etdM) {
+                                etd = `${String(parseInt(etdM[1], 10)).padStart(2, '0')}:${etdM[2]}`;
+                            }
+                        }
+
+                        i++;
+                        if (etd) break; // all data gathered for this flight
+                    }
+
+                    if (reg && etd) {
+                        flights.push({ reg, flt, ades, std, etd, day: docDay, month: docMonth, year: docYear });
+                    }
                     continue;
                 }
-
-                // ── Flight-number line: starts with CV/B8 flight number ──────
-                if (pending) {
-                    const fltM = line.match(/\b(CV\d{3,5}|[A-Z]\d{4,6})\b/i);
-                    if (fltM) {
-                        // ETD is first HH.MM (dot) or HH:MM time on this line
-                        const etdDotM = line.match(/\b(\d{1,2})\.(\d{2})\b/);
-                        if (etdDotM) {
-                            pending.etd = `${String(parseInt(etdDotM[1], 10)).padStart(2, '0')}:${etdDotM[2]}`;
-                        } else {
-                            const etdColM = line.match(/\b(\d{1,2}:\d{2})\b/);
-                            if (etdColM) pending.etd = etdColM[1];
-                        }
-
-                        if (pending.etd) {
-                            flights.push(pending);
-                            pending = null;
-                        }
-                    }
-                }
+                i++;
             }
-
-            // Flush last pending flight if it has ETD
-            if (pending && pending.etd) flights.push(pending);
 
             return flights;
         }
@@ -737,8 +728,9 @@
 
                 const etdDate = new Date(Date.UTC(etdYear, etdMonth - 1, etdDay, etdH, etdM));
                 const note = [
-                    f.ades ? `Destino: ${f.ades}` : '',
-                    f.std  ? `STD: ${f.std}`       : '',
+                    f.flt  ? `Voo: ${f.flt}`      : '',
+                    f.ades ? `Destino: ${f.ades}`  : '',
+                    f.std  ? `STD: ${f.std}`        : '',
                     `ETD: ${f.etd}`
                 ].filter(Boolean).join(' | ');
 
@@ -748,7 +740,7 @@
                     const fcTime = new Date(etdDate.getTime() - 3 * 60 * 60 * 1000);
                     list.push({
                         id: fcId,
-                        title: `Flight Check – ${f.reg}${f.ades ? ' → ' + f.ades : ''}`,
+                        title: `Flight Check – ${f.reg}${f.flt ? ' ' + f.flt : ''}${f.ades ? ' → ' + f.ades : ''}`,
                         category: 'Flight Check',
                         datetime: toInputDatetime(fcTime),
                         note,
@@ -770,7 +762,7 @@
                     const wuTime = new Date(etdDate.getTime() - wakeupMs);
                     list.push({
                         id: wuId,
-                        title: `Crew Wake Up – ${f.reg}${f.ades ? ' → ' + f.ades : ''}`,
+                        title: `Crew Wake Up – ${f.reg}${f.flt ? ' ' + f.flt : ''}${f.ades ? ' → ' + f.ades : ''}`,
                         category: 'Crew Wakeup',
                         datetime: toInputDatetime(wuTime),
                         note,
@@ -787,16 +779,6 @@
 
             setEvents(list);
             return added;
-        }
-    </script>
-    <!-- PDF.js from CDN (text extraction for DayList import).
-         TODO: add integrity="sha384-<HASH>" once you can compute it for your
-         deployment environment (e.g. with: curl -s <url> | openssl dgst -sha384 -binary | openssl base64 -A). -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous"></script>
-    <script>
-        if (window['pdfjs-dist/build/pdf']) {
-            window['pdfjs-dist/build/pdf'].GlobalWorkerOptions.workerSrc =
-                'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
         }
     </script>
 </body>
