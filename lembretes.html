@@ -99,7 +99,7 @@
     <!-- PDF Import -->
     <div class="pdf-section">
         <h3>📄 Importar DayList (PDF)</h3>
-        <div class="hint" style="margin-bottom:12px;">Faça upload do DayList para criar automaticamente os lembretes de <strong>Flight Check</strong> (ETD −3h) e <strong>Crew Wake Up</strong> (ETD −2h, ou −2h15m para LX-UCV / LX-VCV / LX-WCV / LX-YCV).</div>
+        <div class="hint" style="margin-bottom:12px;" id="daylistHint">Faça upload do DayList para criar automaticamente os lembretes de <strong>Flight Check</strong> (ETD −3h) e <strong>Crew Wake Up</strong> (ETD −2h).</div>
         <div class="upload-area">
             <label class="custom-upload-label" for="daylistFile">📁 Escolher DayList PDF</label>
             <input type="file" id="daylistFile" accept=".pdf" onchange="onDayListFileSelected()">
@@ -552,6 +552,22 @@
         // Registrations that require crew wake-up 2h15m before ETD (instead of 2h)
         const EARLY_WAKEUP_REGS = new Set(['LX-UCV', 'LX-VCV', 'LX-WCV', 'LX-YCV']);
 
+        // Default departure airport used when the DayList doesn't specify origin
+        const DEFAULT_ORIGIN = 'LUX';
+
+        // Overnight detection thresholds: if STD ≥ this hour and ETD < this hour,
+        // the ETD is treated as belonging to the following calendar day
+        const OVERNIGHT_STD_THRESHOLD_HOUR = 18;
+        const OVERNIGHT_ETD_THRESHOLD_HOUR = 12;
+
+        // Populate the hint text dynamically from EARLY_WAKEUP_REGS so it stays in sync
+        (function setDaylistHint() {
+            const el = document.getElementById('daylistHint');
+            if (!el) return;
+            const regs = Array.from(EARLY_WAKEUP_REGS).join(' / ');
+            el.innerHTML = `Faça upload do DayList para criar automaticamente os lembretes de <strong>Flight Check</strong> (ETD −3h) e <strong>Crew Wake Up</strong> (ETD −2h, ou −2h15m para ${regs}).`;
+        })();
+
         function onDayListFileSelected() {
             const file = document.getElementById('daylistFile').files[0];
             document.getElementById('daylistFileName').textContent = file
@@ -703,13 +719,13 @@
                 const etdM = parseInt(etdParts[2], 10);
                 const etdTotalMin = etdH * 60 + etdM;
 
-                // Detect overnight: if STD ≥ 18:00 and ETD < 12:00 → ETD is next day
+                // Detect overnight: if STD ≥ threshold and ETD < threshold → ETD is next day
                 let etdDay = f.day, etdMonth = f.month, etdYear = f.year;
                 if (f.std) {
                     const stdParts = f.std.match(/^(\d{1,2}):(\d{2})$/);
                     if (stdParts) {
                         const stdTotalMin = parseInt(stdParts[1], 10) * 60 + parseInt(stdParts[2], 10);
-                        if (stdTotalMin >= 18 * 60 && etdTotalMin < 12 * 60) {
+                        if (stdTotalMin >= OVERNIGHT_STD_THRESHOLD_HOUR * 60 && etdTotalMin < OVERNIGHT_ETD_THRESHOLD_HOUR * 60) {
                             const d = new Date(Date.UTC(etdYear, etdMonth - 1, etdDay));
                             d.setUTCDate(d.getUTCDate() + 1);
                             etdDay   = d.getUTCDate();
@@ -738,7 +754,7 @@
                         note,
                         dismissed: false,
                         registration: f.reg,
-                        origin: 'LUX',
+                        origin: DEFAULT_ORIGIN,
                         destination: f.ades || '',
                         std: f.std || '',
                         etd: f.etd
@@ -760,7 +776,7 @@
                         note,
                         dismissed: false,
                         registration: f.reg,
-                        origin: 'LUX',
+                        origin: DEFAULT_ORIGIN,
                         destination: f.ades || '',
                         std: f.std || '',
                         etd: f.etd
@@ -773,8 +789,10 @@
             return added;
         }
     </script>
-    <!-- PDF.js from CDN (text extraction for DayList import) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- PDF.js from CDN (text extraction for DayList import).
+         TODO: add integrity="sha384-<HASH>" once you can compute it for your
+         deployment environment (e.g. with: curl -s <url> | openssl dgst -sha384 -binary | openssl base64 -A). -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous"></script>
     <script>
         if (window['pdfjs-dist/build/pdf']) {
             window['pdfjs-dist/build/pdf'].GlobalWorkerOptions.workerSrc =
