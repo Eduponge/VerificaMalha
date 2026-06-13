@@ -64,6 +64,21 @@
         .filter-row { display: flex; gap: 10px; align-items: center; padding: 10px 16px; background: #f8f0ff; border-bottom: 1px solid #e8daef; }
         .filter-row label { font-size: 12px; margin-bottom: 0; font-weight: bold; color: #6C3483; }
         .filter-row select { font-size: 12px; padding: 4px; }
+        /* PDF import section */
+        .pdf-section { background: #fff; padding: 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .pdf-section h3 { color: #6C3483; margin-top: 0; }
+        .upload-area { border: 2px dashed #8E44AD; padding: 18px; text-align: center; background: #f9f0ff; border-radius: 5px; margin-bottom: 12px; }
+        .upload-area input[type="file"] { display: none; }
+        .custom-upload-label { background-color: #8E44AD; color: white; display: inline-block; padding: 8px 16px; cursor: pointer; font-weight: bold; border-radius: 3px; font-size: 13px; }
+        .custom-upload-label:hover { background-color: #7D3C98; }
+        .pdf-file-name { margin-top: 8px; font-size: 13px; color: #555; }
+        .pdf-status { margin-top: 10px; font-size: 13px; padding: 8px 12px; border-radius: 3px; display: inline-block; }
+        .pdf-status.ok { background: #EAFAF1; color: #1E8449; }
+        .pdf-status.err { background: #FDEDEC; color: #922B21; }
+        .pdf-status.info { background: #EBF5FB; color: #1A5276; }
+        /* Flight fields in event cards */
+        .flight-tags { margin-top: 4px; }
+        .flight-tag { display: inline-block; font-size: 11px; background: #f0e6ff; color: #6C3483; padding: 1px 7px; border-radius: 8px; margin-right: 4px; }
     </style>
 </head>
 <body>
@@ -80,6 +95,19 @@
 
     <!-- Alert banners area -->
     <div class="alerts-section" id="alertsBanners"></div>
+
+    <!-- PDF Import -->
+    <div class="pdf-section">
+        <h3>📄 Importar DayList (PDF)</h3>
+        <div class="hint" style="margin-bottom:12px;">Faça upload do DayList para criar automaticamente os lembretes de <strong>Flight Check</strong> (ETD −3h) e <strong>Crew Wake Up</strong> (ETD −2h, ou −2h15m para LX-UCV / LX-VCV / LX-WCV / LX-YCV).</div>
+        <div class="upload-area">
+            <label class="custom-upload-label" for="daylistFile">📁 Escolher DayList PDF</label>
+            <input type="file" id="daylistFile" accept=".pdf" onchange="onDayListFileSelected()">
+            <div class="pdf-file-name" id="daylistFileName">Nenhum arquivo selecionado</div>
+        </div>
+        <button class="btn-primary" onclick="importDayList()">⬇️ Importar lembretes do DayList</button>
+        <div id="pdfStatus"></div>
+    </div>
 
     <!-- Form -->
     <div class="form-section">
@@ -103,6 +131,27 @@
             <div class="form-group">
                 <label>Data e Hora do Alerta</label>
                 <input type="datetime-local" id="eventDatetime">
+            </div>
+
+            <div class="form-group">
+                <label>Matrícula</label>
+                <input type="text" id="eventRegistration" placeholder="ex: LX-VCV" maxlength="10" style="text-transform:uppercase">
+            </div>
+            <div class="form-group">
+                <label>Origem</label>
+                <input type="text" id="eventOrigin" placeholder="ex: LUX" maxlength="10" style="text-transform:uppercase">
+            </div>
+            <div class="form-group">
+                <label>Destino</label>
+                <input type="text" id="eventDestination" placeholder="ex: JNB" maxlength="10" style="text-transform:uppercase">
+            </div>
+            <div class="form-group">
+                <label>STD (UTC)</label>
+                <input type="text" id="eventStd" placeholder="HH:MM" maxlength="5">
+            </div>
+            <div class="form-group">
+                <label>ETD (UTC)</label>
+                <input type="text" id="eventEtd" placeholder="HH:MM" maxlength="5">
             </div>
 
             <div class="form-group span4">
@@ -245,6 +294,11 @@
             document.getElementById('eventCategory').value = 'Generic';
             document.getElementById('eventDatetime').value = '';
             document.getElementById('eventNote').value = '';
+            document.getElementById('eventRegistration').value = '';
+            document.getElementById('eventOrigin').value = '';
+            document.getElementById('eventDestination').value = '';
+            document.getElementById('eventStd').value = '';
+            document.getElementById('eventEtd').value = '';
         }
 
         function readForm() {
@@ -255,7 +309,12 @@
                 category: document.getElementById('eventCategory').value || 'Generic',
                 datetime: document.getElementById('eventDatetime').value || '',
                 note: String(document.getElementById('eventNote').value || '').trim(),
-                dismissed: false
+                dismissed: false,
+                registration: String(document.getElementById('eventRegistration').value || '').trim().toUpperCase(),
+                origin: String(document.getElementById('eventOrigin').value || '').trim().toUpperCase(),
+                destination: String(document.getElementById('eventDestination').value || '').trim().toUpperCase(),
+                std: String(document.getElementById('eventStd').value || '').trim(),
+                etd: String(document.getElementById('eventEtd').value || '').trim()
             };
         }
 
@@ -285,6 +344,11 @@
             document.getElementById('eventCategory').value = item.category || 'Generic';
             document.getElementById('eventDatetime').value = item.datetime || '';
             document.getElementById('eventNote').value = item.note || '';
+            document.getElementById('eventRegistration').value = item.registration || '';
+            document.getElementById('eventOrigin').value = item.origin || '';
+            document.getElementById('eventDestination').value = item.destination || '';
+            document.getElementById('eventStd').value = item.std || '';
+            document.getElementById('eventEtd').value = item.etd || '';
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
@@ -390,6 +454,15 @@
                 const badgeCls = statusBadgeClass(status);
                 const time = timeUntil(e.datetime);
                 const dismissLabel = e.dismissed ? 'Reativar' : 'Dispensar';
+                const flightTagParts = [
+                    e.registration ? `✈ ${e.registration}` : '',
+                    e.origin && e.destination ? `${e.origin} → ${e.destination}` : (e.origin || e.destination || ''),
+                    e.std ? `STD ${e.std}` : '',
+                    e.etd ? `ETD ${e.etd}` : ''
+                ].filter(Boolean);
+                const flightTags = flightTagParts.length
+                    ? `<div class="flight-tags">${flightTagParts.map(t => `<span class="flight-tag">${escapeHtml(t)}</span>`).join('')}</div>`
+                    : '';
                 return `
                     <div class="event-card status-${status}">
                         <div class="event-info">
@@ -403,6 +476,7 @@
                                 ${time ? `&nbsp;·&nbsp; ${escapeHtml(time)}` : ''}
                                 ${e.note ? `<br>📝 ${escapeHtml(e.note)}` : ''}
                             </div>
+                            ${flightTags}
                         </div>
                         <div class="event-actions">
                             <button class="edit-btn" onclick="editEvent('${escapeHtml(e.id)}')">Editar</button>
@@ -472,6 +546,240 @@
             tick();
             alertInterval = setInterval(tick, REFRESH_INTERVAL_MS);
         };
+
+        // ── DayList PDF import ─────────────────────────────────────────────────
+
+        // Registrations that require crew wake-up 2h15m before ETD (instead of 2h)
+        const EARLY_WAKEUP_REGS = new Set(['LX-UCV', 'LX-VCV', 'LX-WCV', 'LX-YCV']);
+
+        function onDayListFileSelected() {
+            const file = document.getElementById('daylistFile').files[0];
+            document.getElementById('daylistFileName').textContent = file
+                ? `Arquivo: ${file.name}`
+                : 'Nenhum arquivo selecionado';
+            document.getElementById('pdfStatus').innerHTML = '';
+        }
+
+        async function importDayList() {
+            const file = document.getElementById('daylistFile').files[0];
+            if (!file) { alert('Selecione o arquivo DayList PDF primeiro.'); return; }
+
+            const statusEl = document.getElementById('pdfStatus');
+            statusEl.innerHTML = '<span class="pdf-status info">⏳ Lendo PDF…</span>';
+
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                // PDF.js loaded via CDN (window['pdfjs-dist/build/pdf'])
+                const pdfjsLib = window['pdfjs-dist/build/pdf'];
+                if (!pdfjsLib) {
+                    statusEl.innerHTML = '<span class="pdf-status err">❌ Biblioteca PDF.js não carregada. Verifique a conexão.</span>';
+                    return;
+                }
+                const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+                const pdf = await loadingTask.promise;
+
+                let allText = '';
+                for (let p = 1; p <= pdf.numPages; p++) {
+                    const page = await pdf.getPage(p);
+                    const content = await page.getTextContent();
+                    allText += content.items.map((item) => item.str).join(' ') + '\n';
+                }
+
+                if (!allText.trim()) {
+                    statusEl.innerHTML = '<span class="pdf-status err">⚠️ Este PDF não contém texto extraível (provavelmente baseado em imagens). Insira os dados manualmente ou utilize um PDF com camada de texto.</span>';
+                    return;
+                }
+
+                const flights = parseDayListText(allText);
+                if (!flights.length) {
+                    statusEl.innerHTML = '<span class="pdf-status err">⚠️ Não foram encontrados voos no arquivo. Verifique se é um DayList válido.</span>';
+                    return;
+                }
+
+                const added = createRemindersFromFlights(flights);
+                renderList();
+                renderAlerts();
+                statusEl.innerHTML = `<span class="pdf-status ok">✅ ${added} lembrete(s) criado(s) a partir de ${flights.length} voo(s).</span>`;
+            } catch (err) {
+                statusEl.innerHTML = `<span class="pdf-status err">❌ Erro ao processar o PDF: ${escapeHtml(String(err.message || err))}</span>`;
+            }
+        }
+
+        /**
+         * Parse DayList plain text and return an array of flight objects.
+         * Each flight: { reg, ades, std, etd, day, month, year }
+         *
+         * DayList format (two lines per flight):
+         *   Line A: LX-XXX  ADES  HH:MM  …   ← registration, destination, STD
+         *   Line B: CV####  HH.MM  …          ← flight number, ETD (dot-separated)
+         */
+        function parseDayListText(rawText) {
+            const flights = [];
+
+            // Extract document date (dd/mm/yyyy)
+            const dateMatch = rawText.match(/\b(\d{2})\/(\d{2})\/(\d{4})\b/);
+            if (!dateMatch) return flights;
+            const docDay   = parseInt(dateMatch[1], 10);
+            const docMonth = parseInt(dateMatch[2], 10);
+            const docYear  = parseInt(dateMatch[3], 10);
+
+            // Split into lines (handles various separators produced by PDF.js)
+            const lines = rawText
+                .replace(/\r\n?/g, '\n')
+                .split('\n')
+                .map((l) => l.trim())
+                .filter(Boolean);
+
+            let pending = null; // registration line awaiting its ETD line
+
+            for (const line of lines) {
+                // ── Registration line: must contain LX-XXX ──────────────────
+                const regM = line.match(/\b(LX-[A-Z0-9]{2,4})\b/);
+                if (regM) {
+                    // Save previous flight that had no matching ETD line
+                    if (pending && pending.etd) flights.push(pending);
+
+                    const reg = regM[1];
+                    const afterReg = line.slice(line.indexOf(regM[0]) + regM[0].length);
+
+                    // ADES: first standalone 2-4 uppercase letter group after REG
+                    const adesM = afterReg.match(/\b([A-Z]{2,4})\b/);
+                    const ades = adesM ? adesM[1] : '';
+
+                    // STD: first HH:MM time after REG
+                    const stdM = afterReg.match(/\b(\d{1,2}:\d{2})\b/);
+                    const std = stdM ? stdM[1] : '';
+
+                    pending = { reg, ades, std, etd: '', day: docDay, month: docMonth, year: docYear };
+                    continue;
+                }
+
+                // ── Flight-number line: starts with CV/B8 flight number ──────
+                if (pending) {
+                    const fltM = line.match(/\b(CV\d{3,5}|[A-Z]\d{4,6})\b/i);
+                    if (fltM) {
+                        // ETD is first HH.MM (dot) or HH:MM time on this line
+                        const etdDotM = line.match(/\b(\d{1,2})\.(\d{2})\b/);
+                        if (etdDotM) {
+                            pending.etd = `${String(parseInt(etdDotM[1], 10)).padStart(2, '0')}:${etdDotM[2]}`;
+                        } else {
+                            const etdColM = line.match(/\b(\d{1,2}:\d{2})\b/);
+                            if (etdColM) pending.etd = etdColM[1];
+                        }
+
+                        if (pending.etd) {
+                            flights.push(pending);
+                            pending = null;
+                        }
+                    }
+                }
+            }
+
+            // Flush last pending flight if it has ETD
+            if (pending && pending.etd) flights.push(pending);
+
+            return flights;
+        }
+
+        /**
+         * Given parsed flight objects, create Flight Check and Crew Wake Up
+         * reminders, skip duplicates, and persist to localStorage.
+         * Returns the number of reminders added.
+         */
+        function createRemindersFromFlights(flights) {
+            const list = getEvents();
+            let added = 0;
+
+            function toInputDatetime(d) {
+                const p = (n) => String(n).padStart(2, '0');
+                return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())}T${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
+            }
+
+            for (const f of flights) {
+                const etdParts = f.etd.match(/^(\d{1,2}):(\d{2})$/);
+                if (!etdParts) continue;
+
+                const etdH = parseInt(etdParts[1], 10);
+                const etdM = parseInt(etdParts[2], 10);
+                const etdTotalMin = etdH * 60 + etdM;
+
+                // Detect overnight: if STD ≥ 18:00 and ETD < 12:00 → ETD is next day
+                let etdDay = f.day, etdMonth = f.month, etdYear = f.year;
+                if (f.std) {
+                    const stdParts = f.std.match(/^(\d{1,2}):(\d{2})$/);
+                    if (stdParts) {
+                        const stdTotalMin = parseInt(stdParts[1], 10) * 60 + parseInt(stdParts[2], 10);
+                        if (stdTotalMin >= 18 * 60 && etdTotalMin < 12 * 60) {
+                            const d = new Date(Date.UTC(etdYear, etdMonth - 1, etdDay));
+                            d.setUTCDate(d.getUTCDate() + 1);
+                            etdDay   = d.getUTCDate();
+                            etdMonth = d.getUTCMonth() + 1;
+                            etdYear  = d.getUTCFullYear();
+                        }
+                    }
+                }
+
+                const etdDate = new Date(Date.UTC(etdYear, etdMonth - 1, etdDay, etdH, etdM));
+                const note = [
+                    f.ades ? `Destino: ${f.ades}` : '',
+                    f.std  ? `STD: ${f.std}`       : '',
+                    `ETD: ${f.etd}`
+                ].filter(Boolean).join(' | ');
+
+                // ── Flight Check: ETD − 3h ───────────────────────────────────
+                const fcId = `rem-fc-${f.reg}-${f.etd}-${etdDay}${etdMonth}${etdYear}`;
+                if (!list.find((e) => e.id === fcId)) {
+                    const fcTime = new Date(etdDate.getTime() - 3 * 60 * 60 * 1000);
+                    list.push({
+                        id: fcId,
+                        title: `Flight Check – ${f.reg}${f.ades ? ' → ' + f.ades : ''}`,
+                        category: 'Flight Check',
+                        datetime: toInputDatetime(fcTime),
+                        note,
+                        dismissed: false,
+                        registration: f.reg,
+                        origin: 'LUX',
+                        destination: f.ades || '',
+                        std: f.std || '',
+                        etd: f.etd
+                    });
+                    added++;
+                }
+
+                // ── Crew Wake Up: ETD − 2h (or − 2h15m for special regs) ────
+                const isEarly = EARLY_WAKEUP_REGS.has(f.reg);
+                const wakeupMs = isEarly ? (2 * 60 + 15) * 60 * 1000 : 2 * 60 * 60 * 1000;
+                const wuId = `rem-wu-${f.reg}-${f.etd}-${etdDay}${etdMonth}${etdYear}`;
+                if (!list.find((e) => e.id === wuId)) {
+                    const wuTime = new Date(etdDate.getTime() - wakeupMs);
+                    list.push({
+                        id: wuId,
+                        title: `Crew Wake Up – ${f.reg}${f.ades ? ' → ' + f.ades : ''}`,
+                        category: 'Crew Wakeup',
+                        datetime: toInputDatetime(wuTime),
+                        note,
+                        dismissed: false,
+                        registration: f.reg,
+                        origin: 'LUX',
+                        destination: f.ades || '',
+                        std: f.std || '',
+                        etd: f.etd
+                    });
+                    added++;
+                }
+            }
+
+            setEvents(list);
+            return added;
+        }
+    </script>
+    <!-- PDF.js from CDN (text extraction for DayList import) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        if (window['pdfjs-dist/build/pdf']) {
+            window['pdfjs-dist/build/pdf'].GlobalWorkerOptions.workerSrc =
+                'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
     </script>
 </body>
 </html>
