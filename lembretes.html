@@ -634,28 +634,36 @@
                 .map((l) => l.trim())
                 .filter(Boolean);
 
+            // Pattern for standalone registration lines (e.g. LX-SCV)
+            const REG_PATTERN = /^LX-[A-Z0-9]{2,5}$/;
+
             let i = 0;
             while (i < lines.length) {
                 // Standalone registration line: exactly "LX-XXXX"
-                if (/^LX-[A-Z0-9]{2,5}$/.test(lines[i])) {
+                if (REG_PATTERN.test(lines[i])) {
                     const reg = lines[i];
                     i++;
 
                     let flt = '', ades = '', std = '', etd = '';
 
                     // Scan subsequent lines until the next registration or end of file
-                    while (i < lines.length && !/^LX-[A-Z0-9]{2,5}$/.test(lines[i])) {
+                    while (i < lines.length && !REG_PATTERN.test(lines[i])) {
                         const l = lines[i];
 
-                        // Flight number: 1-2 uppercase letters followed by 3-6 digits (e.g. CV7956, C80016)
+                        // Flight number: 1-2 uppercase letters followed by 3-5 digits (e.g. CV7956)
+                        // or 1 uppercase letter followed by 5-6 digits (e.g. C80016)
                         if (!flt) {
                             const fltM = l.match(/\b(CV\d{3,5}|[A-Z]{1,2}\d{4,6})\b/);
                             if (fltM) flt = fltM[1];
                         }
 
-                        // ADES: standalone 2-4 uppercase letter word (not a zone code like Z01)
+                        // ADES: standalone 2-4 uppercase letter word (not a zone code like Z01).
+                        // When the flight number is on the same line, search the portion after it
+                        // to avoid matching any letter prefix that belongs to the flight number.
                         if (!ades) {
-                            const adesM = l.match(/\b([A-Z]{2,4})\b/);
+                            const fltIdxInLine = flt ? l.indexOf(flt) : -1;
+                            const searchFrom = fltIdxInLine >= 0 ? l.slice(fltIdxInLine + flt.length) : l;
+                            const adesM = searchFrom.match(/\b([A-Z]{2,4})\b/);
                             if (adesM && !/^Z\d+$/.test(adesM[1])) ades = adesM[1];
                         }
 
