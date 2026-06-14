@@ -17,7 +17,17 @@
         .alert-card { padding: 12px; margin-bottom: 10px; border-radius: 4px; border-left: 6px solid; font-size: 14px; background-color: #FEF9E7; border-color: #F39C12; color: #5e3c00; }
         .alert-high { background-color: #FDEDEC; border-color: #E74C3C; color: #8f2d23; }
         .alert-warn { background-color: #FEF9E7; border-color: #F39C12; color: #7f4c00; }
+        .alert-dismissed { opacity: 0.55; border-color: #bdc3c7 !important; background-color: #f2f3f4 !important; color: #7f8c8d !important; }
         .no-alerts { color: #27AE60; font-weight: bold; font-size: 16px; }
+        .alert-body { flex: 1; }
+        .alert-row { display: flex; gap: 12px; align-items: flex-start; }
+        .alert-actions { display: flex; flex-direction: column; gap: 5px; align-items: flex-end; flex-shrink: 0; }
+        .btn-edit { background: #3498DB; color: white; border: none; padding: 4px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; }
+        .btn-edit:hover { background: #2980B9; }
+        .btn-dismiss { background: #7f8c8d; color: white; border: none; padding: 4px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; }
+        .btn-dismiss:hover { background: #5d6d6f; }
+        .btn-exclude { background: #ff4d4d; color: white; border: none; padding: 4px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; }
+        .btn-exclude:hover { background: #c0392b; }
     </style>
 </head>
 <body>
@@ -41,6 +51,47 @@
 
     <script>
         const ANALYSIS_KEY = 'lastAnalysis';
+        const DISMISSED_KEY = 'analysisAlertsDismissed';
+        const EXCLUDED_KEY = 'analysisAlertsExcluded';
+
+        function getDismissed() {
+            try { return new Set(JSON.parse(localStorage.getItem(DISMISSED_KEY) || '[]')); } catch (e) { return new Set(); }
+        }
+
+        function setDismissed(set) {
+            localStorage.setItem(DISMISSED_KEY, JSON.stringify(Array.from(set)));
+        }
+
+        function getExcluded() {
+            try { return new Set(JSON.parse(localStorage.getItem(EXCLUDED_KEY) || '[]')); } catch (e) { return new Set(); }
+        }
+
+        function setExcluded(set) {
+            localStorage.setItem(EXCLUDED_KEY, JSON.stringify(Array.from(set)));
+        }
+
+        function toggleDismiss(alertId) {
+            const dismissed = getDismissed();
+            if (dismissed.has(alertId)) dismissed.delete(alertId);
+            else dismissed.add(alertId);
+            setDismissed(dismissed);
+            const saved = JSON.parse(localStorage.getItem(ANALYSIS_KEY) || 'null');
+            if (saved) renderEvents(saved);
+        }
+
+        function excludeAlert(alertId) {
+            if (!confirm('Excluir permanentemente este alerta da análise?')) return;
+            const excluded = getExcluded();
+            excluded.add(alertId);
+            setExcluded(excluded);
+            const saved = JSON.parse(localStorage.getItem(ANALYSIS_KEY) || 'null');
+            if (saved) renderEvents(saved);
+        }
+
+        function editRestriction(restrictionId) {
+            localStorage.setItem('pendingEditRestrictionId', restrictionId);
+            window.location.href = 'restricoes.html';
+        }
 
         function norm(value) {
             return String(value || '').trim();
@@ -75,12 +126,36 @@
             return depDate.getUTCHours() * 60 + depDate.getUTCMinutes();
         }
 
+        function segmentArrTimeMinutes(segment) {
+            const fromEta = parseTimeToMinutes(segment.eta);
+            if (fromEta != null) return fromEta;
+            const fromSta = parseTimeToMinutes(segment.sta);
+            if (fromSta != null) return fromSta;
+            const arrISO = norm(segment.arrDateTimeISO);
+            if (!arrISO) return null;
+            const arrDate = new Date(arrISO);
+            if (Number.isNaN(arrDate.getTime())) return null;
+            return arrDate.getUTCHours() * 60 + arrDate.getUTCMinutes();
+        }
+
         function isHourInWindow(segmentMinutes, start, end) {
             const s = parseTimeToMinutes(start);
             const e = parseTimeToMinutes(end);
             if (segmentMinutes == null || s == null || e == null) return false;
             if (s <= e) return segmentMinutes >= s && segmentMinutes <= e;
             return segmentMinutes >= s || segmentMinutes <= e;
+        }
+
+        function isFlightOverlapWindow(depMinutes, arrMinutes, start, end) {
+            const s = parseTimeToMinutes(start);
+            const e = parseTimeToMinutes(end);
+            if (depMinutes == null || arrMinutes == null || s == null || e == null) return false;
+            // Normalize arrival across midnight if needed
+            const arrAdj = arrMinutes < depMinutes ? arrMinutes + 1440 : arrMinutes;
+            // Normalize window end across midnight if needed
+            const eAdj = e < s ? e + 1440 : e;
+            // Interval overlap: [depMinutes, arrAdj] overlaps [s, eAdj]
+            return depMinutes <= eAdj && arrAdj >= s;
         }
 
         function matchField(restrictionValue, segmentValue) {
@@ -113,8 +188,25 @@
             const validWindows = windows.filter(([start, end]) => norm(start) && norm(end));
             if (!validWindows.length) return { pass: true, detail: 'Sem filtro de hora' };
 
-            const segmentMinutes = segmentTimeMinutes(segment);
-            const passedWindow = validWindows.find(([start, end]) => isHourInWindow(segmentMinutes, start, end));
+            const hasArr = !!norm(restriction.arptIataArr);
+            const hasOrig = !!norm(restriction.arptIataOrig);
+
+            let passedWindow;
+            if (hasArr && hasOrig) {
+                // Both filled: the window must overlap the flight's dep→arr time span
+                const depMin = segmentTimeMinutes(segment);
+                const arrMin = segmentArrTimeMinutes(segment);
+                passedWindow = validWindows.find(([start, end]) => isFlightOverlapWindow(depMin, arrMin, start, end));
+            } else if (hasArr) {
+                // Only arrival airport: use STA/ETA as time reference
+                const arrMin = segmentArrTimeMinutes(segment);
+                passedWindow = validWindows.find(([start, end]) => isHourInWindow(arrMin, start, end));
+            } else {
+                // Only origin airport (or neither): use STD/ETD as time reference
+                const depMin = segmentTimeMinutes(segment);
+                passedWindow = validWindows.find(([start, end]) => isHourInWindow(depMin, start, end));
+            }
+
             if (!passedWindow) return { pass: false, detail: 'Fora das janelas horárias' };
             return { pass: true, detail: `Dentro da janela ${passedWindow[0]}-${passedWindow[1]}` };
         }
@@ -185,6 +277,21 @@
                 reasons.push(`Crew ${Number.isFinite(crew) ? crew : '-'} < mínimo ${minCrew}`);
             }
 
+            if (restriction.maxDutyTime !== '' && restriction.maxDutyTime != null) {
+                let dutyMinutes = null;
+                if (segment.depDateTimeISO && segment.arrDateTimeISO) {
+                    const depDt = new Date(segment.depDateTimeISO);
+                    const arrDt = new Date(segment.arrDateTimeISO);
+                    if (!Number.isNaN(depDt.getTime()) && !Number.isNaN(arrDt.getTime())) {
+                        dutyMinutes = Math.round((arrDt - depDt) / 60000);
+                    }
+                }
+                const limit = Number(restriction.maxDutyTime);
+                const pass = Number.isFinite(dutyMinutes) && dutyMinutes > limit;
+                checks.push(pass);
+                reasons.push(`Duty ${Number.isFinite(dutyMinutes) ? dutyMinutes : '-'} min > limite ${limit} min`);
+            }
+
             const pass = checks.every(Boolean);
             return { pass, reason: reasons };
         }
@@ -209,10 +316,13 @@
         }
 
         function buildEvent(restriction, segment, reasons) {
+            const restrictionId = restriction.id || '-';
+            const segmentId = segment.id || '-';
             return {
-                restrictionId: restriction.id || '-',
+                alertId: `${restrictionId}|${segmentId}`,
+                restrictionId,
                 restrictionType: restriction.restrictionType || restriction.type || '-',
-                segmentId: segment.id || '-',
+                segmentId,
                 flightNumber: segment.flightNumber || segment.flt || '-',
                 reg: segment.reg || '-',
                 orig: segment.orig || segment.dep || '-',
@@ -240,30 +350,52 @@
         function renderEvents(payload) {
             const output = document.getElementById('alertsOutput');
             const meta = document.getElementById('analysisMeta');
+
+            const excluded = getExcluded();
+            const dismissed = getDismissed();
+
+            const visibleEvents = payload.events.filter((e) => !excluded.has(e.alertId));
+
             const metaText = [
                 `DayRep: ${escapeHtml(payload.dayRepFileName || 'não informado')}`,
                 `Segmentos: ${payload.segmentCount}`,
                 `Restrições: ${payload.restrictionCount}`,
-                `Eventos: ${payload.events.length}`,
+                `Eventos: ${visibleEvents.length}`,
                 `Gerado em: ${new Date(payload.generatedAt).toLocaleString('pt-BR', { hour12: false })}`
             ].join(' | ');
             meta.textContent = metaText;
 
-            if (!payload.events.length) {
+            if (!visibleEvents.length) {
                 output.innerHTML = "<p class='no-alerts'>✅ Nenhum evento encontrado para o DayRep e restrições atuais.</p>";
                 return;
             }
 
-            output.innerHTML = payload.events.map((event) => `
-                <div class="alert-card ${severityFor(event.restrictionType)}">
-                    <strong>⚠️ Restrição acionada:</strong> ${escapeHtml(event.restrictionType)}<br>
-                    <b>Voo/segmento:</b> ${escapeHtml(event.flightNumber)} (${escapeHtml(event.segmentId)})<br>
-                    <b>Matrícula:</b> ${escapeHtml(event.reg)} | <b>Rota:</b> ${escapeHtml(event.orig)} ➔ ${escapeHtml(event.dest)}<br>
-                    <b>Data/Hora:</b> ${escapeHtml(event.date)} ${escapeHtml(event.time)}<br>
-                    <b>Motivo do match:</b> ${escapeHtml(event.reason)}
-                    ${event.description ? `<br><small><b>Observação:</b> ${escapeHtml(event.description)}</small>` : ''}
-                </div>
-            `).join('');
+            output.innerHTML = visibleEvents.map((event) => {
+                const isDismissed = dismissed.has(event.alertId);
+                const dismissLabel = isDismissed ? 'Reativar' : 'Dispensar';
+                const cardClass = isDismissed ? 'alert-card alert-dismissed' : `alert-card ${severityFor(event.restrictionType)}`;
+                const aid = escapeHtml(event.alertId);
+                const rid = escapeHtml(event.restrictionId);
+                return `
+                    <div class="${cardClass}">
+                        <div class="alert-row">
+                            <div class="alert-body">
+                                <strong>⚠️ Restrição acionada:</strong> ${escapeHtml(event.restrictionType)}<br>
+                                <b>Voo/segmento:</b> ${escapeHtml(event.flightNumber)} (${escapeHtml(event.segmentId)})<br>
+                                <b>Matrícula:</b> ${escapeHtml(event.reg)} | <b>Rota:</b> ${escapeHtml(event.orig)} ➔ ${escapeHtml(event.dest)}<br>
+                                <b>Data/Hora:</b> ${escapeHtml(event.date)} ${escapeHtml(event.time)}<br>
+                                <b>Motivo do match:</b> ${escapeHtml(event.reason)}
+                                ${event.description ? `<br><small><b>Observação:</b> ${escapeHtml(event.description)}</small>` : ''}
+                            </div>
+                            <div class="alert-actions">
+                                <button class="btn-edit" onclick="editRestriction('${rid}')">Editar</button>
+                                <button class="btn-dismiss" onclick="toggleDismiss('${aid}')">${dismissLabel}</button>
+                                <button class="btn-exclude" onclick="excludeAlert('${aid}')">Excluir</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
         }
 
         function runAnalysis(forceRebuild) {

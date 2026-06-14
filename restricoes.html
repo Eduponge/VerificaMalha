@@ -82,6 +82,7 @@
         <div class="form-group"><label>Max Delay Time (min)</label><input type="number" id="maxDelayTime" min="0" placeholder="ex: 180"></div>
         <div class="form-group"><label>Max Ground Time (min)</label><input type="number" id="maxGroundTime" min="0" placeholder="ex: 240"></div>
 
+        <div class="form-group"><label>Max Duty Time (min)</label><input type="number" id="maxDutyTime" min="0" placeholder="ex: 480"></div>
         <div class="form-group"><label>Min Crew Composition</label><input type="number" id="minCrewComposition" min="0" placeholder="ex: 3"></div>
         <div class="form-group"><label>Expiration Date / validade</label><input type="date" id="expirationDate"></div>
         <div class="form-group" style="grid-column: span 2;"><label>Description / remarks</label><textarea id="description" rows="2" placeholder="Regras, premissas e observações"></textarea></div>
@@ -110,6 +111,7 @@
                     <th>Fleet_Type</th>
                     <th>Max Delay</th>
                     <th>Max Ground</th>
+                    <th>Max Duty</th>
                     <th>Min Crew</th>
                     <th>Expiration</th>
                     <th>Description</th>
@@ -177,6 +179,7 @@
                 fleetType: item.acft || '',
                 maxDelayTime: '',
                 maxGroundTime: '',
+                maxDutyTime: '',
                 minCrewComposition: '',
                 expirationDate: item.end ? String(item.end).slice(0, 10) : '',
                 description: item.desc || ''
@@ -194,7 +197,7 @@
             document.getElementById('restrictionType').value = 'Customs';
             [
                 'arptIataArr','arptIataOrig','weekday','day','month','year','initHour1','endHour1','initHour2','endHour2',
-                'initHour3','endHour3','fleetType','maxDelayTime','maxGroundTime','minCrewComposition','expirationDate','description'
+                'initHour3','endHour3','fleetType','maxDelayTime','maxGroundTime','maxDutyTime','minCrewComposition','expirationDate','description'
             ].forEach((id) => {
                 document.getElementById(id).value = '';
             });
@@ -220,6 +223,7 @@
                 fleetType: toUpper(document.getElementById('fleetType').value),
                 maxDelayTime: toNumberOrEmpty(document.getElementById('maxDelayTime').value),
                 maxGroundTime: toNumberOrEmpty(document.getElementById('maxGroundTime').value),
+                maxDutyTime: toNumberOrEmpty(document.getElementById('maxDutyTime').value),
                 minCrewComposition: toNumberOrEmpty(document.getElementById('minCrewComposition').value),
                 expirationDate: toISODateOrEmpty(document.getElementById('expirationDate').value),
                 description: normalize(document.getElementById('description').value)
@@ -252,6 +256,7 @@
                     <td>${escapeHtml(item.fleetType || '—')}</td>
                     <td>${item.maxDelayTime === '' ? '—' : item.maxDelayTime}</td>
                     <td>${item.maxGroundTime === '' ? '—' : item.maxGroundTime}</td>
+                    <td>${item.maxDutyTime === '' ? '—' : item.maxDutyTime}</td>
                     <td>${item.minCrewComposition === '' ? '—' : item.minCrewComposition}</td>
                     <td>${escapeHtml(item.expirationDate || '—')}</td>
                     <td>${escapeHtml(item.description || '—')}</td>
@@ -297,6 +302,7 @@
             document.getElementById('fleetType').value = item.fleetType || '';
             document.getElementById('maxDelayTime').value = item.maxDelayTime === '' ? '' : item.maxDelayTime;
             document.getElementById('maxGroundTime').value = item.maxGroundTime === '' ? '' : item.maxGroundTime;
+            document.getElementById('maxDutyTime').value = item.maxDutyTime === '' ? '' : item.maxDutyTime;
             document.getElementById('minCrewComposition').value = item.minCrewComposition === '' ? '' : item.minCrewComposition;
             document.getElementById('expirationDate').value = item.expirationDate || '';
             document.getElementById('description').value = item.description || '';
@@ -329,6 +335,12 @@
         window.onload = function() {
             fillFleetTypeOptions();
             renderRestrictions();
+            const pendingId = localStorage.getItem('pendingEditRestrictionId');
+            if (pendingId) {
+                localStorage.removeItem('pendingEditRestrictionId');
+                editRestriction(pendingId);
+                document.querySelector('.form-grid').scrollIntoView({ behavior: 'smooth' });
+            }
         };
     </script>
 </body>
