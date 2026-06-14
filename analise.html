@@ -286,9 +286,6 @@
                         dutyMinutes = Math.round((arrDt - depDt) / 60000);
                     }
                 }
-                if (dutyMinutes == null && segment.delayMinutes != null) {
-                    dutyMinutes = Number(segment.delayMinutes);
-                }
                 const limit = Number(restriction.maxDutyTime);
                 const pass = Number.isFinite(dutyMinutes) && dutyMinutes > limit;
                 checks.push(pass);
