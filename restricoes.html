@@ -13,12 +13,19 @@
         .form-group { display: flex; flex-direction: column; }
         label { font-weight: bold; margin-bottom: 5px; font-size: 13px; }
         input, select, textarea { padding: 6px; border: 1px solid #ccc; border-radius: 3px; font-family: Calibri; }
-        .actions { grid-column: span 4; display: flex; gap: 10px; }
+        .actions { grid-column: span 4; display: flex; gap: 10px; flex-wrap: wrap; }
         button { background-color: #E74C3C; color: white; border: none; padding: 10px 12px; cursor: pointer; font-weight: bold; border-radius: 3px; }
         button:hover { background-color: #c0392b; }
         .secondary { background-color: #7f8c8d; }
         .secondary:hover { background-color: #5d6d6f; }
         .hint { font-size: 12px; color: #666; margin-bottom: 12px; }
+        .backup-panel { background: #fff; padding: 16px 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .backup-panel h3 { margin-top: 0; color: #2c3e50; }
+        .backup-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+        .status-message { margin-top: 10px; font-size: 13px; font-weight: bold; }
+        .status-message.success { color: #1e8449; }
+        .status-message.error { color: #c0392b; }
+        .status-message.info { color: #2c3e50; }
         table { width: 100%; border-collapse: collapse; background: #fff; margin-top: 20px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: center; font-size: 12px; }
         th { background-color: #E74C3C; color: white; position: sticky; top: 0; }
@@ -38,6 +45,17 @@
 
     <h2>Gerenciar Restrições de Malha</h2>
     <div class="hint">Campos vazios funcionam como wildcard (não restritivo). Os dados ficam salvos localmente no navegador.</div>
+
+    <div class="backup-panel">
+        <h3>Backup e restauração</h3>
+        <div class="hint">Baixe um arquivo JSON para guardar suas restrições fora do navegador ou importe um backup já salvo na sua máquina.</div>
+        <div class="backup-actions">
+            <button type="button" onclick="downloadRestrictionsJson()">⬇️ Baixar arquivo JSON</button>
+            <button type="button" class="secondary" onclick="triggerImportRestrictions()">⬆️ Subir arquivo JSON</button>
+            <input type="file" id="importRestrictionsFile" accept="application/json,.json" onchange="importRestrictionsFromFile(event)" hidden>
+        </div>
+        <div id="backupStatus" class="status-message info">Nenhum backup importado nesta sessão.</div>
+    </div>
 
     <div class="form-grid">
         <input type="hidden" id="editingId" value="">
@@ -154,6 +172,39 @@
                 .replace(/'/g, '&#039;');
         }
 
+        function setBackupStatus(message, type) {
+            const status = document.getElementById('backupStatus');
+            status.textContent = message;
+            status.className = `status-message ${type || 'info'}`;
+        }
+
+        function sanitizeRestriction(rawItem, fallbackIndex) {
+            const item = rawItem && typeof rawItem === 'object' ? rawItem : {};
+            return {
+                id: normalize(item.id) || `res-import-${Date.now()}-${fallbackIndex}-${Math.random().toString(16).slice(2, 8)}`,
+                restrictionType: normalize(item.restrictionType) || 'Outros',
+                arptIataArr: toUpper(item.arptIataArr),
+                arptIataOrig: toUpper(item.arptIataOrig),
+                weekday: toUpper(item.weekday),
+                day: toNumberOrEmpty(item.day),
+                month: toNumberOrEmpty(item.month),
+                year: toNumberOrEmpty(item.year),
+                initHour1: normalize(item.initHour1),
+                endHour1: normalize(item.endHour1),
+                initHour2: normalize(item.initHour2),
+                endHour2: normalize(item.endHour2),
+                initHour3: normalize(item.initHour3),
+                endHour3: normalize(item.endHour3),
+                fleetType: toUpper(item.fleetType),
+                maxDelayTime: toNumberOrEmpty(item.maxDelayTime),
+                maxGroundTime: toNumberOrEmpty(item.maxGroundTime),
+                maxDutyTime: toNumberOrEmpty(item.maxDutyTime),
+                minCrewComposition: toNumberOrEmpty(item.minCrewComposition),
+                expirationDate: toISODateOrEmpty(item.expirationDate),
+                description: normalize(item.description)
+            };
+        }
+
         function getRestrictions() {
             const current = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
             if (Array.isArray(current)) return current;
@@ -233,6 +284,76 @@
         function formatHourWindow(start, end) {
             if (!start && !end) return '—';
             return `${start || '--:--'} - ${end || '--:--'}`;
+        }
+
+        function triggerImportRestrictions() {
+            document.getElementById('importRestrictionsFile').click();
+        }
+
+        function buildRestrictionsBackupPayload(list) {
+            return {
+                version: 1,
+                exportedAt: new Date().toISOString(),
+                source: 'VerificaMalha/restricoes.html',
+                restrictions: list
+            };
+        }
+
+        function downloadRestrictionsJson() {
+            const list = getRestrictions();
+            const payload = buildRestrictionsBackupPayload(list);
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+            link.href = url;
+            link.download = `restricoes-backup-${stamp}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            setBackupStatus(`Backup exportado com sucesso (${list.length} restrição(ões)).`, 'success');
+        }
+
+        function importRestrictionsFromFile(event) {
+            const input = event.target;
+            const file = input.files && input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(loadEvent) {
+                try {
+                    const parsed = JSON.parse(loadEvent.target.result);
+                    const rawList = Array.isArray(parsed)
+                        ? parsed
+                        : Array.isArray(parsed && parsed.restrictions)
+                            ? parsed.restrictions
+                            : null;
+
+                    if (!rawList) {
+                        throw new Error('O arquivo JSON não contém uma lista válida de restrições.');
+                    }
+
+                    const imported = rawList.map((item, index) => sanitizeRestriction(item, index));
+                    setRestrictions(imported);
+                    renderRestrictions();
+                    clearForm();
+                    setBackupStatus(`Importação concluída com sucesso (${imported.length} restrição(ões)).`, 'success');
+                } catch (error) {
+                    console.error('Falha ao importar restrições:', error);
+                    setBackupStatus(`Falha ao importar arquivo: ${error.message}`, 'error');
+                    alert(`Falha ao importar arquivo JSON: ${error.message}`);
+                } finally {
+                    input.value = '';
+                }
+            };
+
+            reader.onerror = function() {
+                setBackupStatus('Falha ao ler o arquivo selecionado.', 'error');
+                input.value = '';
+            };
+
+            reader.readAsText(file, 'utf-8');
         }
 
         function renderRestrictions() {
