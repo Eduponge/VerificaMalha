@@ -14,6 +14,12 @@
         .actions { margin-bottom: 12px; }
         .actions button { background: #D35400; color: #fff; border: none; padding: 10px 14px; border-radius: 3px; cursor: pointer; font-weight: bold; }
         .actions button:hover { background: #AF4B00; }
+        .filter-row { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; background: #fcf3eb; border: 1px solid #f3d7bd; border-radius: 4px; padding: 10px 12px; }
+        .filter-row label { font-size: 12px; margin-bottom: 0; color: #7f4c00; font-weight: bold; }
+        .filter-row .filter-title { font-size: 12px; color: #7f4c00; font-weight: bold; }
+        .filter-row input[type="date"] { font-size: 12px; padding: 4px; border: 1px solid #ccc; border-radius: 3px; }
+        .btn-clear-filter { background: #7f8c8d; color: #fff; border: none; padding: 6px 10px; border-radius: 3px; cursor: pointer; font-size: 12px; font-weight: bold; }
+        .btn-clear-filter:hover { background: #5d6d6f; }
         .alert-card { padding: 12px; margin-bottom: 10px; border-radius: 4px; border-left: 6px solid; font-size: 14px; background-color: #FEF9E7; border-color: #F39C12; color: #5e3c00; }
         .alert-high { background-color: #FDEDEC; border-color: #E74C3C; color: #8f2d23; }
         .alert-warn { background-color: #FEF9E7; border-color: #F39C12; color: #7f4c00; }
@@ -45,6 +51,14 @@
         <div class="meta" id="analysisMeta"></div>
         <div class="actions">
             <button onclick="runAnalysis(true)">Reanalisar agora</button>
+        </div>
+        <div class="filter-row">
+            <span class="filter-title">Filtrar eventos por data:</span>
+            <label for="filterDateFrom">De</label>
+            <input type="date" id="filterDateFrom" onchange="rerenderSavedAnalysis()">
+            <label for="filterDateTo">Até</label>
+            <input type="date" id="filterDateTo" onchange="rerenderSavedAnalysis()">
+            <button class="btn-clear-filter" onclick="clearDateFilter()">Limpar filtro</button>
         </div>
         <div id="alertsOutput"></div>
     </div>
@@ -114,6 +128,57 @@
             const match = norm(hhmm).match(/^(\d{1,2}):(\d{2})$/);
             if (!match) return null;
             return Number(match[1]) * 60 + Number(match[2]);
+        }
+
+        function parseDateFilterStart(dateStr) {
+            if (!dateStr) return null;
+            const d = new Date(`${dateStr}T00:00:00`);
+            return Number.isNaN(d.getTime()) ? null : d.getTime();
+        }
+
+        function parseDateFilterEnd(dateStr) {
+            if (!dateStr) return null;
+            const d = new Date(`${dateStr}T23:59:59.999`);
+            return Number.isNaN(d.getTime()) ? null : d.getTime();
+        }
+
+        function eventTimestamp(event) {
+            const dateRaw = norm(event.date);
+            const timeRaw = norm(event.time) || '00:00';
+            const timeMatch = timeRaw.match(/^(\d{1,2}):(\d{2})$/);
+            if (!timeMatch) return null;
+            const hh = Number(timeMatch[1]);
+            const mm = Number(timeMatch[2]);
+
+            const brDate = dateRaw.match(/^(\d{2})\/(\d{2})\/(\d{2}|\d{4})$/);
+            if (brDate) {
+                const day = Number(brDate[1]);
+                const month = Number(brDate[2]);
+                const rawYear = Number(brDate[3]);
+                const year = brDate[3].length === 2 ? 2000 + rawYear : rawYear;
+                const d = new Date(year, month - 1, day, hh, mm, 0, 0);
+                return Number.isNaN(d.getTime()) ? null : d.getTime();
+            }
+
+            const isoDate = dateRaw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+            if (isoDate) {
+                const year = Number(isoDate[1]);
+                const month = Number(isoDate[2]);
+                const day = Number(isoDate[3]);
+                const d = new Date(year, month - 1, day, hh, mm, 0, 0);
+                return Number.isNaN(d.getTime()) ? null : d.getTime();
+            }
+
+            return null;
+        }
+
+        function eventMatchesDateRange(event, startMs, endMs) {
+            if (startMs == null && endMs == null) return true;
+            const ts = eventTimestamp(event);
+            if (ts == null) return false;
+            if (startMs != null && ts < startMs) return false;
+            if (endMs != null && ts > endMs) return false;
+            return true;
         }
 
         function segmentTimeMinutes(segment) {
@@ -350,11 +415,24 @@
         function renderEvents(payload) {
             const output = document.getElementById('alertsOutput');
             const meta = document.getElementById('analysisMeta');
+            const filterDateFrom = document.getElementById('filterDateFrom').value;
+            const filterDateTo = document.getElementById('filterDateTo').value;
+            let filterStartMs = parseDateFilterStart(filterDateFrom);
+            let filterEndMs = parseDateFilterEnd(filterDateTo);
+            if (filterStartMs != null && filterEndMs != null && filterStartMs > filterEndMs) {
+                const tmp = filterStartMs;
+                filterStartMs = filterEndMs;
+                filterEndMs = tmp;
+                document.getElementById('filterDateFrom').value = filterDateTo;
+                document.getElementById('filterDateTo').value = filterDateFrom;
+            }
 
             const excluded = getExcluded();
             const dismissed = getDismissed();
 
-            const visibleEvents = payload.events.filter((e) => !excluded.has(e.alertId));
+            const visibleEvents = payload.events
+                .filter((e) => !excluded.has(e.alertId))
+                .filter((e) => eventMatchesDateRange(e, filterStartMs, filterEndMs));
 
             const metaText = [
                 `DayRep: ${escapeHtml(payload.dayRepFileName || 'não informado')}`,
@@ -396,6 +474,17 @@
                     </div>
                 `;
             }).join('');
+        }
+
+        function rerenderSavedAnalysis() {
+            const saved = JSON.parse(localStorage.getItem(ANALYSIS_KEY) || 'null');
+            if (saved) renderEvents(saved);
+        }
+
+        function clearDateFilter() {
+            document.getElementById('filterDateFrom').value = '';
+            document.getElementById('filterDateTo').value = '';
+            rerenderSavedAnalysis();
         }
 
         function runAnalysis(forceRebuild) {
