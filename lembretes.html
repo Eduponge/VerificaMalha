@@ -63,7 +63,8 @@
         .clock { font-size: 13px; color: #7f8c8d; font-weight: normal; }
         .filter-row { display: flex; gap: 10px; align-items: center; padding: 10px 16px; background: #f8f0ff; border-bottom: 1px solid #e8daef; }
         .filter-row label { font-size: 12px; margin-bottom: 0; font-weight: bold; color: #6C3483; }
-        .filter-row select { font-size: 12px; padding: 4px; }
+        .filter-row select, .filter-row input[type="date"] { font-size: 12px; padding: 4px; }
+        .filter-spacer { margin-left: 16px; }
         /* TXT import section */
         .pdf-section { background: #fff; padding: 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
         .pdf-section h3 { color: #6C3483; margin-top: 0; }
@@ -173,7 +174,7 @@
             <span class="clock" id="clockDisplay"></span>
         </div>
         <div class="filter-row">
-            <label>Filtrar por status:</label>
+            <label for="filterStatus">Filtrar por status:</label>
             <select id="filterStatus" onchange="renderList()">
                 <option value="all">Todos</option>
                 <option value="active">Ativos (pendentes)</option>
@@ -182,7 +183,7 @@
                 <option value="future">Futuros</option>
                 <option value="dismissed">Dispensados</option>
             </select>
-            <label style="margin-left:16px;">Filtrar por categoria:</label>
+            <label class="filter-spacer" for="filterCategory">Filtrar por categoria:</label>
             <select id="filterCategory" onchange="renderList()">
                 <option value="all">Todas</option>
                 <option value="Flight Check">✈️ Flight Check</option>
@@ -190,6 +191,10 @@
                 <option value="Generic">📌 Generic</option>
                 <option value="Other">🗂️ Other</option>
             </select>
+            <label class="filter-spacer" for="filterDateFrom">De:</label>
+            <input type="date" id="filterDateFrom" onchange="renderList()">
+            <label class="filter-spacer" for="filterDateTo">Até:</label>
+            <input type="date" id="filterDateTo" onchange="renderList()">
         </div>
         <div id="eventList"></div>
     </div>
@@ -199,6 +204,7 @@
         const UPCOMING_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
         const REFRESH_INTERVAL_MS = 30000; // refresh every 30 seconds
         const STATUS_ORDER = { overdue: 0, upcoming: 1, future: 2, dismissed: 3 };
+        const SAMPLE_REMINDER_IDS = new Set(['rem-example-1', 'rem-example-2', 'rem-example-3']);
         let alertInterval = null;
 
         function escapeHtml(value) {
@@ -286,6 +292,37 @@
                 dismissed: '⚪ Dispensado'
             };
             return map[status] || status;
+        }
+
+        function getEventTimeMs(event) {
+            const t = new Date(event.datetime).getTime();
+            return Number.isNaN(t) ? null : t;
+        }
+
+        function parseDateFilterStart(dateStr) {
+            if (!dateStr) return null;
+            const d = new Date(`${dateStr}T00:00:00`);
+            return Number.isNaN(d.getTime()) ? null : d.getTime();
+        }
+
+        function parseDateFilterEnd(dateStr) {
+            if (!dateStr) return null;
+            const d = new Date(`${dateStr}T23:59:59.999`);
+            return Number.isNaN(d.getTime()) ? null : d.getTime();
+        }
+
+        function eventMatchesDateRange(event, startMs, endMs) {
+            const eventMs = getEventTimeMs(event);
+            if (eventMs == null) return false;
+            if (startMs != null && eventMs < startMs) return false;
+            if (endMs != null && eventMs > endMs) return false;
+            return true;
+        }
+
+        function purgeSampleEvents() {
+            const list = getEvents();
+            const filtered = list.filter((e) => !SAMPLE_REMINDER_IDS.has(e.id));
+            if (filtered.length !== list.length) setEvents(filtered);
         }
 
         function clearForm() {
@@ -416,6 +453,17 @@
             const container = document.getElementById('eventList');
             const filterStatus = document.getElementById('filterStatus').value;
             const filterCategory = document.getElementById('filterCategory').value;
+            const filterDateFrom = document.getElementById('filterDateFrom').value;
+            const filterDateTo = document.getElementById('filterDateTo').value;
+            let filterStartMs = parseDateFilterStart(filterDateFrom);
+            let filterEndMs = parseDateFilterEnd(filterDateTo);
+            if (filterStartMs != null && filterEndMs != null && filterStartMs > filterEndMs) {
+                const tmp = filterStartMs;
+                filterStartMs = filterEndMs;
+                filterEndMs = tmp;
+                document.getElementById('filterDateFrom').value = filterDateTo;
+                document.getElementById('filterDateTo').value = filterDateFrom;
+            }
 
             let events = getEvents();
 
@@ -441,6 +489,10 @@
 
             if (filterCategory !== 'all') {
                 events = events.filter((e) => e.category === filterCategory);
+            }
+
+            if (filterStartMs != null || filterEndMs != null) {
+                events = events.filter((e) => eventMatchesDateRange(e, filterStartMs, filterEndMs));
             }
 
             if (!events.length) {
@@ -501,48 +553,8 @@
             renderList();
         }
 
-        function seedExamples() {
-            const existing = getEvents();
-            if (existing.length > 0) return;
-
-            const now = new Date();
-            function isoOffset(hoursFromNow) {
-                const d = new Date(now.getTime() + hoursFromNow * 3600000);
-                const pad = (n) => String(n).padStart(2, '0');
-                return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-            }
-
-            const examples = [
-                {
-                    id: `rem-example-1`,
-                    title: '3 hours check – flight departing from LUX',
-                    category: 'Flight Check',
-                    datetime: isoOffset(2.5),
-                    note: 'Perform 3-hour pre-departure check for all flights departing LUX. Verify cargo docs, fuel uplift and crew rest.',
-                    dismissed: false
-                },
-                {
-                    id: `rem-example-2`,
-                    title: 'Crew wakeup call – 2h prior to LUX departure',
-                    category: 'Crew Wakeup',
-                    datetime: isoOffset(1.5),
-                    note: 'Call crew 2 hours before scheduled departure from LUX.',
-                    dismissed: false
-                },
-                {
-                    id: `rem-example-3`,
-                    title: 'Generic reminder – sample time-based item',
-                    category: 'Generic',
-                    datetime: isoOffset(4),
-                    note: 'Any other item that should be remembered based on time.',
-                    dismissed: false
-                }
-            ];
-            setEvents(examples);
-        }
-
         window.onload = function() {
-            seedExamples();
+            purgeSampleEvents();
             tick();
             alertInterval = setInterval(tick, REFRESH_INTERVAL_MS);
         };
