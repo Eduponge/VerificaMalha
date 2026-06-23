@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Configuração Meteo</title>
+    <style>
+        body { font-family: Calibri, sans-serif; margin: 20px; background-color: #f4f6f9; }
+        h2 { color: #1A6BB5; border-bottom: 2px solid #1A6BB5; padding-bottom: 5px; }
+        h3 { color: #1A6BB5; margin-top: 0; }
+        .nav { margin-bottom: 20px; background: #fff; padding: 10px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .nav a { margin-right: 15px; text-decoration: none; color: #2c3e50; font-weight: bold; }
+        .nav a:hover { color: #3498DB; }
+        .container { background: #fff; padding: 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .backup-panel { background: #fff; padding: 16px 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .backup-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+        .status-message { margin-top: 10px; font-size: 13px; font-weight: bold; }
+        .status-message.success { color: #1e8449; }
+        .status-message.error { color: #c0392b; }
+        .status-message.info { color: #2c3e50; }
+        button { background-color: #1A6BB5; color: white; border: none; padding: 8px 14px; cursor: pointer; font-weight: bold; border-radius: 3px; font-family: Calibri; font-size: 14px; }
+        button:hover { background-color: #1557a0; }
+        .secondary { background-color: #7f8c8d; }
+        .secondary:hover { background-color: #5d6d6f; }
+        .btn-save { background-color: #27AE60; }
+        .btn-save:hover { background-color: #1e8449; }
+        .hint { font-size: 12px; color: #666; margin-bottom: 12px; }
+        input[type="text"], input[type="number"] { padding: 5px 8px; border: 1px solid #ccc; border-radius: 3px; font-family: Calibri; font-size: 13px; }
+        select { padding: 5px 8px; border: 1px solid #ccc; border-radius: 3px; font-family: Calibri; font-size: 13px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; font-size: 13px; }
+        th { background-color: #1A6BB5; color: white; }
+        .delete-btn { background: #ff4d4d; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 12px; }
+        .form-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 10px; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-group label { font-weight: bold; font-size: 13px; }
+        .error-msg { color: #c0392b; font-size: 12px; font-weight: bold; margin-top: 4px; min-height: 18px; }
+        .bulk-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+        .btn-green { background-color: #27AE60; }
+        .btn-green:hover { background-color: #1e8449; }
+        .btn-yellow { background-color: #F39C12; }
+        .btn-yellow:hover { background-color: #d68910; }
+        .btn-red { background-color: #E74C3C; }
+        .btn-red:hover { background-color: #c0392b; }
+        .btn-reset { background-color: #7f8c8d; }
+        .btn-reset:hover { background-color: #5d6d6f; }
+        .wx-table-wrap { overflow-y: auto; max-height: 500px; }
+        .range-label { font-size: 12px; color: #444; }
+    </style>
+</head>
+<body>
+    <div class="nav">
+        <a href="index.html">⏱ Timeline da Malha</a>
+        <a href="restricoes.html">⚠️ Cadastro de Restrições</a>
+        <a href="analise.html">🔍 Análise</a>
+        <a href="lembretes.html">🔔 Eventos e Lembretes</a>
+        <a href="meteo.html">☁️ Configuração Meteo</a>
+    </div>
+
+    <h2>☁️ Configuração Meteorológica</h2>
+
+    <!-- BACKUP PANEL -->
+    <div class="backup-panel">
+        <h3>Backup e restauração</h3>
+        <div class="hint">Baixe um arquivo JSON para guardar sua configuração meteorológica fora do navegador ou importe um backup já salvo na sua máquina.</div>
+        <div class="backup-actions">
+            <button type="button" onclick="downloadBackup()">⬇️ Baixar arquivo JSON</button>
+            <button type="button" class="secondary" onclick="triggerImport()">⬆️ Subir arquivo JSON</button>
+            <input type="file" id="importFile" accept="application/json,.json" onchange="importFromFile(event)" hidden>
+        </div>
+        <div id="backupStatus" class="status-message info">Nenhum backup importado nesta sessão.</div>
+    </div>
+
+    <!-- BASES SECTION -->
+    <div class="container">
+        <h3>📍 Coordenadas das Bases</h3>
+        <div class="hint">Cadastre as bases com suas coordenadas para consulta meteorológica via API. Formato obrigatório: <b>N49°37.4' / E6°12.26'</b></div>
+        <div class="form-row">
+            <div class="form-group">
+                <label for="baseCode">Código ICAO/IATA</label>
+                <input type="text" id="baseCode" placeholder="Ex: ELLX" maxlength="10" style="width:100px;" />
+            </div>
+            <div class="form-group">
+                <label for="baseCoord">Coordenadas</label>
+                <input type="text" id="baseCoord" placeholder="N49°37.4' / E6°12.26'" style="width:280px;" />
+            </div>
+            <div class="form-group" style="justify-content:flex-end;">
+                <button type="button" onclick="addBase()">➕ Adicionar Base</button>
+            </div>
+        </div>
+        <div id="coordError" class="error-msg"></div>
+        <table id="basesTable">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Coordenadas (original)</th>
+                    <th>Lat decimal</th>
+                    <th>Lon decimal</th>
+                    <th>Ação</th>
+                </tr>
+            </thead>
+            <tbody id="basesTableBody"></tbody>
+        </table>
+    </div>
+
+    <!-- CRITERIA SECTION -->
+    <div class="container">
+        <h3>⚖️ Critérios de Classificação</h3>
+        <div class="hint">Defina os limites para cada parâmetro meteorológico. Valores fora dos limites são classificados como Amarelo ou Vermelho.</div>
+        <table id="criteriaTable">
+            <thead>
+                <tr>
+                    <th style="text-align:left;">Parâmetro</th>
+                    <th>Limites</th>
+                </tr>
+            </thead>
+            <tbody id="criteriaTableBody"></tbody>
+        </table>
+        <br>
+        <button type="button" class="btn-save" onclick="saveCriteria()">💾 Salvar Critérios</button>
+        <span id="criteriaSaveMsg" style="margin-left:10px;font-size:13px;font-weight:bold;color:#1e8449;"></span>
+    </div>
+
+    <!-- WEATHER CODES SECTION -->
+    <div class="container">
+        <h3>🌦️ Classificação de Códigos de Tempo</h3>
+        <div class="hint">Classifique cada código meteorológico WMO (0–99) em Verde, Amarelo ou Vermelho.</div>
+        <div class="bulk-btns">
+            <button type="button" class="btn-green" onclick="bulkSetCodes('green')">Tudo Verde</button>
+            <button type="button" class="btn-yellow" onclick="bulkSetCodes('yellow')">Tudo Amarelo</button>
+            <button type="button" class="btn-red" onclick="bulkSetCodes('red')">Tudo Vermelho</button>
+            <button type="button" class="btn-reset" onclick="restoreDefaultCodes()">Restaurar Padrão</button>
+        </div>
+        <div class="wx-table-wrap">
+            <table id="wxCodesTable">
+                <thead>
+                    <tr>
+                        <th style="width:60px;">Código</th>
+                        <th>Descrição</th>
+                        <th style="width:150px;">Classificação</th>
+                    </tr>
+                </thead>
+                <tbody id="wxCodesTableBody"></tbody>
+            </table>
+        </div>
+        <br>
+        <button type="button" class="btn-save" onclick="saveWeatherCodes()">💾 Salvar Classificação de Códigos</button>
+        <span id="codesSaveMsg" style="margin-left:10px;font-size:13px;font-weight:bold;color:#1e8449;"></span>
+    </div>
+
+    <script>
+    // ===== DATA =====
+
+    const WEATHER_CODE_DESC = {
+        "0": "Tempo bom",
+        "1": "Nuvens dissipando",
+        "2": "Tempo bom",
+        "3": "Nuvens se formando",
+        "4": "Visibilidade reduzida por fumaça",
+        "5": "Neblina seca (haze)",
+        "6": "Poeira suspensa em grande escala",
+        "7": "Poeira ou areia levantada pelo vento",
+        "8": "Turbilhão de poeira/areia bem desenvolvido",
+        "9": "Tempestade de poeira ou areia",
+        "10": "Névoa",
+        "11": "Nevoeiro em pedaços/fragmentos",
+        "12": "Nevoeiro contínuo",
+        "13": "Relâmpago visível, sem trovão",
+        "14": "Precipitação à vista, não atingindo o solo",
+        "15": "Precipitação à vista, atingindo solo, distante >5km",
+        "16": "Precipitação próxima, mas não na estação",
+        "17": "Trovoada sem precipitação",
+        "18": "Rajadas (squalls)",
+        "19": "CB (Cumulonimbus)",
+        "20": "Chuvisco (não congelante) ou grãos de neve",
+        "21": "Chuva (não congelante)",
+        "22": "Neve",
+        "23": "Chuva e neve ou granizo",
+        "24": "Chuvisco congelante ou chuva congelante",
+        "25": "Pancadas de chuva",
+        "26": "Pancadas de neve, ou de chuva e neve",
+        "27": "Pancadas de granizo, ou de chuva e granizo",
+        "28": "Nevoeiro ou nevoeiro de gelo",
+        "29": "Trovoada (com ou sem precipitação)",
+        "30": "Tempestade de poeira ou areia, leve ou moderada",
+        "31": "Tempestade de poeira ou areia, leve ou moderada",
+        "32": "Tempestade de poeira ou areia, leve ou moderada",
+        "33": "Tempestade de poeira ou areia severa",
+        "34": "Tempestade de poeira ou areia severa",
+        "35": "Tempestade de poeira ou areia severa",
+        "36": "Neve soprada leve ou moderada",
+        "37": "Neve soprada forte",
+        "38": "Neve soprada leve ou moderada",
+        "39": "Neve soprada forte",
+        "40": "Nevoeiro ou nevoeiro de gelo à distância",
+        "41": "Nevoeiro parcial",
+        "42": "Nevoeiro com céu visível",
+        "43": "Nevoeiro com céu obscurecido",
+        "44": "Nevoeiro com céu visível",
+        "45": "Nevoeiro com céu obscurecido",
+        "46": "Nevoeiro com céu visível e tendência de piorar",
+        "47": "Nevoeiro com céu obscurecido e tendência de piorar",
+        "48": "Nevoeiro com céu visível",
+        "49": "Nevoeiro com céu obscurecido",
+        "50": "Chuvisco intermitente",
+        "51": "Chuvisco contínuo",
+        "52": "Chuvisco intermitente",
+        "53": "Chuvisco contínuo",
+        "54": "Chuvisco intermitente",
+        "55": "Chuvisco contínuo",
+        "56": "Chuvisco congelante, fraco",
+        "57": "Chuvisco congelante, moderado ou forte",
+        "58": "Chuvisco e chuva, fraco",
+        "59": "Chuvisco e chuva, moderado ou forte",
+        "60": "Chuva intermitente",
+        "61": "Chuva contínua",
+        "62": "Chuva intermitente",
+        "63": "Chuva contínua",
+        "64": "Chuva intermitente",
+        "65": "Chuva contínua",
+        "66": "Chuva congelante, fraca",
+        "67": "Chuva congelante, moderada ou forte",
+        "68": "Chuva ou chuvisco e neve, fraca",
+        "69": "Chuva ou chuvisco e neve, moderada ou forte",
+        "70": "Queda intermitente de flocos de neve",
+        "71": "Queda contínua de flocos de neve",
+        "72": "Queda intermitente de flocos de neve",
+        "73": "Queda contínua de flocos de neve",
+        "74": "Queda intermitente de flocos de neve",
+        "75": "Queda contínua de flocos de neve",
+        "76": "Pó de diamante (com ou sem nevoeiro)",
+        "77": "Grãos de neve (com ou sem nevoeiro)",
+        "78": "Cristais de neve isolados em forma de estrela",
+        "79": "Granizo",
+        "80": "Pancadas de chuva, fraca",
+        "81": "Pancadas de chuva, moderada ou forte",
+        "82": "Pancadas de chuva, violenta",
+        "83": "Pancadas de chuva e neve misturados, fraca",
+        "84": "Pancadas de chuva e neve misturados, moderada ou forte",
+        "85": "Pancadas de neve, fraca",
+        "86": "Pancadas de neve, moderada ou forte",
+        "87": "Pancadas de grãos de neve ou granizo pequeno",
+        "88": "Pancadas de grãos de neve ou granizo pequeno",
+        "89": "Pancadas de granizo, sem trovoada",
+        "90": "Pancadas de granizo, sem trovoada",
+        "91": "Chuva fraca no momento da observação",
+        "92": "Chuva moderada ou forte no momento da observação",
+        "93": "Neve fraca, ou chuva e neve misturados ou granizo",
+        "94": "Neve moderada ou forte, ou chuva e neve misturados",
+        "95": "Trovoada, fraca ou moderada, sem granizo, com chuva e/ou neve",
+        "96": "Trovoada, fraca ou moderada, com granizo",
+        "97": "Trovoada, forte, sem granizo, com chuva e/ou neve",
+        "98": "Trovoada combinada com tempestade de poeira ou areia",
+        "99": "Trovoada, forte, com granizo"
+    };
+
+    const DEFAULT_WEATHER_CODES = (() => {
+        const result = {};
+        [0,1,2,3].forEach(c => result[String(c)] = 'green');
+        [4,5,6,7,8,10,11,13,14,15,16,17,18,20,21,25,30,31,32,36,38,40,41,42,43,44,46,48,50,51,52,53,54,55,58,59,60,61,62,63,70,71,72,73,80,81,83,91,92].forEach(c => result[String(c)] = 'yellow');
+        [9,12,19,22,23,24,26,27,28,29,33,34,35,37,39,45,47,49,56,57,64,65,66,67,68,69,74,75,76,77,78,79,82,84,85,86,87,88,89,90,93,94,95,96,97,98,99].forEach(c => result[String(c)] = 'red');
+        return result;
+    })();
+
+    const DEFAULT_CRITERIA = {
+        cloud_cover: { rule: 'max', yellow: 50, red: 80 },
+        cloud_cover_low: { rule: 'max', yellow: 25, red: 50 },
+        visibility: { rule: 'min', yellow: 5000, red: 1500 },
+        apparent_temperature: { rule: 'range', comfortMin: -5, comfortMax: 40, marginalMin: -15, marginalMax: 45 },
+        precipitation_probability: { rule: 'max', yellow: 30, red: 60 },
+        precipitation: { rule: 'max', yellow: 1, red: 5 },
+        showers: { rule: 'max', yellow: 0, red: 2 },
+        wind_speed_80m: { rule: 'max', yellow: 20, red: 30 }
+    };
+
+    const CRITERIA_PARAMS = [
+        { key: 'cloud_cover', label: 'Cobertura de Nuvens (%)', rule: 'max' },
+        { key: 'cloud_cover_low', label: 'Nuvens Baixas (%)', rule: 'max' },
+        { key: 'visibility', label: 'Visibilidade (m)', rule: 'min' },
+        { key: 'apparent_temperature', label: 'Temp. Aparente (°C)', rule: 'range' },
+        { key: 'precipitation_probability', label: 'Prob. Precipitação (%)', rule: 'max' },
+        { key: 'precipitation', label: 'Precipitação (mm)', rule: 'max' },
+        { key: 'showers', label: 'Pancadas (mm)', rule: 'max' },
+        { key: 'wind_speed_80m', label: 'Vento 80m (kt)', rule: 'max' }
+    ];
+
+    // ===== STATE =====
+    let bases = {};
+
+    // ===== STORAGE =====
+    function loadConfig() {
+        try { return JSON.parse(localStorage.getItem('wxConfig') || '{}') || {}; } catch(e) { return {}; }
+    }
+
+    function saveConfig(config) {
+        localStorage.setItem('wxConfig', JSON.stringify(config));
+    }
+
+    // ===== ESCAPE =====
+    function escapeHtml(v) {
+        return String(v || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+    }
+
+    // ===== COORD PARSER =====
+    function parseCoordStr(str) {
+        const re = /^\s*([NS])\s*(\d+)\s*°\s*([\d.]+)'\s*\/\s*([EW])\s*(\d+)\s*°\s*([\d.]+)'\s*$/i;
+        const m = String(str || '').match(re);
+        if (!m) return null;
+        let lat = parseFloat(m[2]) + parseFloat(m[3]) / 60;
+        let lon = parseFloat(m[5]) + parseFloat(m[6]) / 60;
+        if (m[1].toUpperCase() === 'S') lat = -lat;
+        if (m[4].toUpperCase() === 'W') lon = -lon;
+        return { lat: Math.round(lat * 1e6) / 1e6, lon: Math.round(lon * 1e6) / 1e6 };
+    }
+
+    // ===== BASES =====
+    function renderBasesTable() {
+        const tbody = document.getElementById('basesTableBody');
+        const entries = Object.entries(bases);
+        if (!entries.length) {
+            tbody.innerHTML = '<tr><td colspan="5" style="color:#999;">Nenhuma base cadastrada.</td></tr>';
+            return;
+        }
+        tbody.innerHTML = entries.map(([code, info]) => `
+            <tr>
+                <td><b>${escapeHtml(code)}</b></td>
+                <td>${escapeHtml(info.coordStr)}</td>
+                <td>${info.lat}</td>
+                <td>${info.lon}</td>
+                <td><button class="delete-btn" onclick="deleteBase('${escapeHtml(code)}')">🗑️ Apagar</button></td>
+            </tr>
+        `).join('');
+    }
+
+    function addBase() {
+        const codeInput = document.getElementById('baseCode');
+        const coordInput = document.getElementById('baseCoord');
+        const errorDiv = document.getElementById('coordError');
+        const code = codeInput.value.trim().toUpperCase();
+        const coordStr = coordInput.value.trim();
+        errorDiv.textContent = '';
+
+        if (!code) {
+            errorDiv.textContent = 'Informe o código ICAO/IATA da base.';
+            return;
+        }
+        const parsed = parseCoordStr(coordStr);
+        if (!parsed) {
+            errorDiv.textContent = "Formato inválido. Use: N49°37.4' / E6°12.26'";
+            return;
+        }
+
+        bases[code] = { lat: parsed.lat, lon: parsed.lon, coordStr };
+        const cfg = loadConfig();
+        cfg.bases = bases;
+        saveConfig(cfg);
+        renderBasesTable();
+        codeInput.value = '';
+        coordInput.value = '';
+    }
+
+    function deleteBase(code) {
+        if (!confirm(`Remover a base ${code}?`)) return;
+        delete bases[code];
+        const cfg = loadConfig();
+        cfg.bases = bases;
+        saveConfig(cfg);
+        renderBasesTable();
+    }
+
+    // ===== CRITERIA =====
+    function buildCriteriaTable(criteria) {
+        const tbody = document.getElementById('criteriaTableBody');
+        tbody.innerHTML = CRITERIA_PARAMS.map(p => {
+            const c = criteria[p.key] || DEFAULT_CRITERIA[p.key];
+            if (p.rule === 'max') {
+                return `<tr>
+                    <td style="text-align:left;font-weight:bold;">${escapeHtml(p.label)}</td>
+                    <td style="text-align:left;">
+                        <span class="range-label">Amarelo &gt; </span>
+                        <input type="number" id="crit_${p.key}_yellow" value="${c.yellow}" style="width:70px;" />
+                        &nbsp;&nbsp;
+                        <span class="range-label">Vermelho &gt; </span>
+                        <input type="number" id="crit_${p.key}_red" value="${c.red}" style="width:70px;" />
+                    </td>
+                </tr>`;
+            } else if (p.rule === 'min') {
+                return `<tr>
+                    <td style="text-align:left;font-weight:bold;">${escapeHtml(p.label)}</td>
+                    <td style="text-align:left;">
+                        <span class="range-label">Amarelo &lt; </span>
+                        <input type="number" id="crit_${p.key}_yellow" value="${c.yellow}" style="width:70px;" />
+                        &nbsp;&nbsp;
+                        <span class="range-label">Vermelho &lt; </span>
+                        <input type="number" id="crit_${p.key}_red" value="${c.red}" style="width:70px;" />
+                    </td>
+                </tr>`;
+            } else {
+                return `<tr>
+                    <td style="text-align:left;font-weight:bold;">${escapeHtml(p.label)}</td>
+                    <td style="text-align:left;">
+                        <span class="range-label">Conforto mín: </span>
+                        <input type="number" id="crit_${p.key}_comfortMin" value="${c.comfortMin}" style="width:60px;" />
+                        &nbsp;
+                        <span class="range-label">Conforto máx: </span>
+                        <input type="number" id="crit_${p.key}_comfortMax" value="${c.comfortMax}" style="width:60px;" />
+                        &nbsp;&nbsp;
+                        <span class="range-label">Marginal mín: </span>
+                        <input type="number" id="crit_${p.key}_marginalMin" value="${c.marginalMin}" style="width:60px;" />
+                        &nbsp;
+                        <span class="range-label">Marginal máx: </span>
+                        <input type="number" id="crit_${p.key}_marginalMax" value="${c.marginalMax}" style="width:60px;" />
+                    </td>
+                </tr>`;
+            }
+        }).join('');
+    }
+
+    function saveCriteria() {
+        const criteria = {};
+        CRITERIA_PARAMS.forEach(p => {
+            if (p.rule === 'max' || p.rule === 'min') {
+                criteria[p.key] = {
+                    rule: p.rule,
+                    yellow: parseFloat(document.getElementById(`crit_${p.key}_yellow`).value),
+                    red: parseFloat(document.getElementById(`crit_${p.key}_red`).value)
+                };
+            } else {
+                criteria[p.key] = {
+                    rule: 'range',
+                    comfortMin: parseFloat(document.getElementById(`crit_${p.key}_comfortMin`).value),
+                    comfortMax: parseFloat(document.getElementById(`crit_${p.key}_comfortMax`).value),
+                    marginalMin: parseFloat(document.getElementById(`crit_${p.key}_marginalMin`).value),
+                    marginalMax: parseFloat(document.getElementById(`crit_${p.key}_marginalMax`).value),
+                };
+            }
+        });
+        const cfg = loadConfig();
+        cfg.criteria = criteria;
+        saveConfig(cfg);
+        const msg = document.getElementById('criteriaSaveMsg');
+        msg.textContent = '✅ Critérios salvos!';
+        setTimeout(() => { msg.textContent = ''; }, 3000);
+    }
+
+    // ===== WEATHER CODES =====
+    function buildWxCodesTable(weatherCodes) {
+        const tbody = document.getElementById('wxCodesTableBody');
+        tbody.innerHTML = Array.from({length: 100}, (_, i) => {
+            const code = String(i);
+            const desc = WEATHER_CODE_DESC[code] || '';
+            const val = weatherCodes[code] || 'yellow';
+            return `<tr>
+                <td>${i}</td>
+                <td style="text-align:left;">${escapeHtml(desc)}</td>
+                <td>
+                    <select id="wc_${i}" style="width:120px;">
+                        <option value="green"${val === 'green' ? ' selected' : ''}>Verde</option>
+                        <option value="yellow"${val === 'yellow' ? ' selected' : ''}>Amarelo</option>
+                        <option value="red"${val === 'red' ? ' selected' : ''}>Vermelho</option>
+                    </select>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function bulkSetCodes(value) {
+        for (let i = 0; i < 100; i++) {
+            const sel = document.getElementById(`wc_${i}`);
+            if (sel) sel.value = value;
+        }
+    }
+
+    function restoreDefaultCodes() {
+        for (let i = 0; i < 100; i++) {
+            const sel = document.getElementById(`wc_${i}`);
+            if (sel) sel.value = DEFAULT_WEATHER_CODES[String(i)] || 'yellow';
+        }
+    }
+
+    function saveWeatherCodes() {
+        const weatherCodes = {};
+        for (let i = 0; i < 100; i++) {
+            const sel = document.getElementById(`wc_${i}`);
+            if (sel) weatherCodes[String(i)] = sel.value;
+        }
+        const cfg = loadConfig();
+        cfg.weatherCodes = weatherCodes;
+        saveConfig(cfg);
+        const msg = document.getElementById('codesSaveMsg');
+        msg.textContent = '✅ Classificação salva!';
+        setTimeout(() => { msg.textContent = ''; }, 3000);
+    }
+
+    // ===== BACKUP =====
+    function downloadBackup() {
+        const cfg = loadConfig();
+        const backup = {
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            source: 'VerificaMalha/meteo.html',
+            criteria: cfg.criteria || {},
+            weatherCodes: cfg.weatherCodes || {},
+            bases: cfg.bases || {}
+        };
+        const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `meteo-config-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setBackupStatus('Backup baixado com sucesso.', 'success');
+    }
+
+    function triggerImport() {
+        document.getElementById('importFile').click();
+    }
+
+    function importFromFile(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const parsed = JSON.parse(e.target.result);
+                if (Array.isArray(parsed)) {
+                    setBackupStatus('Formato de array não suportado para configuração meteo.', 'error');
+                    return;
+                }
+                if (!parsed || typeof parsed !== 'object' || (!parsed.criteria && !parsed.weatherCodes && !parsed.bases)) {
+                    setBackupStatus('Arquivo JSON inválido: estrutura não reconhecida.', 'error');
+                    return;
+                }
+                const cfg = loadConfig();
+                if (parsed.criteria) cfg.criteria = parsed.criteria;
+                if (parsed.weatherCodes) cfg.weatherCodes = parsed.weatherCodes;
+                if (parsed.bases) cfg.bases = parsed.bases;
+                saveConfig(cfg);
+                loadPage();
+                setBackupStatus(`✅ Importado com sucesso (${escapeHtml(file.name)}).`, 'success');
+            } catch(err) {
+                setBackupStatus('Erro ao importar: arquivo JSON inválido ou corrompido.', 'error');
+            }
+        };
+        reader.readAsText(file);
+        event.target.value = '';
+    }
+
+    function setBackupStatus(msg, type) {
+        const el = document.getElementById('backupStatus');
+        el.textContent = msg;
+        el.className = `status-message ${type}`;
+    }
+
+    // ===== PAGE LOAD =====
+    function loadPage() {
+        const cfg = loadConfig();
+        bases = cfg.bases ? Object.assign({}, cfg.bases) : {};
+        renderBasesTable();
+        buildCriteriaTable(Object.keys(cfg.criteria || {}).length ? cfg.criteria : DEFAULT_CRITERIA);
+        buildWxCodesTable(Object.keys(cfg.weatherCodes || {}).length ? cfg.weatherCodes : DEFAULT_WEATHER_CODES);
+    }
+
+    window.onload = loadPage;
+    </script>
+</body>
+</html>
