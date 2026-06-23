@@ -40,6 +40,7 @@
         th { background-color: #3498DB; color: white; }
         .small { font-size: 12px; color: #666; }
         .error { color: #c0392b; font-weight: bold; }
+        .wx-btn { background: none; border: none; font-size: 16px; padding: 2px; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -49,6 +50,7 @@
         <a href="restricoes.html">⚠️ Cadastro de Restrições</a>
         <a href="analise.html">🔍 Análise</a>
         <a href="lembretes.html">🔔 Eventos e Lembretes</a>
+        <a href="meteo.html">☁️ Configuração Meteo</a>
     </div>
 
     <div class="container">
@@ -274,12 +276,16 @@
             const regs = Object.keys(grouped).sort();
             let html = `<p><b>Arquivo:</b> ${escapeHtml(fileName)} | <b>Segmentos válidos:</b> ${segments.length} | <b>Matrículas:</b> ${regs.length}</p>`;
 
+            let wxBtnIdx = 0;
+            const orderedSegments = [];
+
             regs.forEach((reg) => {
                 const list = grouped[reg].slice().sort((a, b) => new Date(a.depDateTimeISO) - new Date(b.depDateTimeISO));
                 html += `<div class="ac-block"><div class="ac-title">Matrícula: ${escapeHtml(reg)}</div>`;
-                html += '<table><tr><th>Data</th><th>Voo</th><th>Orig</th><th>Dest</th><th>STD</th><th>STA/ETA</th><th>Atraso (min)</th><th>Ground até próximo (min)</th><th>Voo anterior</th><th>Voo sucessor</th></tr>';
+                html += '<table><tr><th>Data</th><th>Voo</th><th>Orig</th><th>Dest</th><th>STD</th><th>STA/ETA</th><th>Atraso (min)</th><th>Ground até próximo (min)</th><th>Voo anterior</th><th>Voo sucessor</th><th>Meteo</th></tr>';
                 list.forEach((segment) => {
                     const arrRef = segment.eta || segment.sta || '-';
+                    orderedSegments.push(segment);
                     html += `<tr>
                         <td>${escapeHtml(segment.dateRaw)}</td>
                         <td>${escapeHtml(segment.flightNumber || '-')}</td>
@@ -291,12 +297,17 @@
                         <td>${segment.groundTimeToNextMinutes == null ? '-' : segment.groundTimeToNextMinutes}</td>
                         <td>${escapeHtml(segment.previousLabel || '-')}</td>
                         <td>${escapeHtml(segment.nextLabel || '-')}</td>
+                        <td><button class="wx-btn" id="wxbtn-${wxBtnIdx}" title="Carregando...">⏳</button></td>
                     </tr>`;
+                    wxBtnIdx++;
                 });
                 html += '</table></div>';
             });
 
             output.innerHTML = html;
+            if (orderedSegments.length) {
+                loadWeatherFlags(orderedSegments).catch(e => console.warn('WX load error:', e));
+            }
         }
 
         function processarDayRepFile() {
@@ -361,6 +372,382 @@
                 console.warn('Falha ao restaurar timeline do cache:', e);
             }
         };
+
+        // ===== METEOROLOGIA =====
+
+        const WEATHER_CODE_PT_IDX = {
+            "0": "Tempo bom",
+            "1": "Nuvens dissipando",
+            "2": "Tempo bom",
+            "3": "Nuvens se formando",
+            "4": "Visibilidade reduzida por fumaça",
+            "5": "Neblina seca (haze)",
+            "6": "Poeira suspensa em grande escala",
+            "7": "Poeira ou areia levantada pelo vento",
+            "8": "Turbilhão de poeira/areia bem desenvolvido",
+            "9": "Tempestade de poeira ou areia",
+            "10": "Névoa",
+            "11": "Nevoeiro em pedaços/fragmentos",
+            "12": "Nevoeiro contínuo",
+            "13": "Relâmpago visível, sem trovão",
+            "14": "Precipitação à vista, não atingindo o solo",
+            "15": "Precipitação à vista, atingindo solo, distante >5km",
+            "16": "Precipitação próxima, mas não na estação",
+            "17": "Trovoada sem precipitação",
+            "18": "Rajadas (squalls)",
+            "19": "CB (Cumulonimbus)",
+            "20": "Chuvisco (não congelante) ou grãos de neve",
+            "21": "Chuva (não congelante)",
+            "22": "Neve",
+            "23": "Chuva e neve ou granizo",
+            "24": "Chuvisco congelante ou chuva congelante",
+            "25": "Pancadas de chuva",
+            "26": "Pancadas de neve, ou de chuva e neve",
+            "27": "Pancadas de granizo, ou de chuva e granizo",
+            "28": "Nevoeiro ou nevoeiro de gelo",
+            "29": "Trovoada (com ou sem precipitação)",
+            "30": "Tempestade de poeira ou areia, leve ou moderada",
+            "31": "Tempestade de poeira ou areia, leve ou moderada",
+            "32": "Tempestade de poeira ou areia, leve ou moderada",
+            "33": "Tempestade de poeira ou areia severa",
+            "34": "Tempestade de poeira ou areia severa",
+            "35": "Tempestade de poeira ou areia severa",
+            "36": "Neve soprada leve ou moderada",
+            "37": "Neve soprada forte",
+            "38": "Neve soprada leve ou moderada",
+            "39": "Neve soprada forte",
+            "40": "Nevoeiro ou nevoeiro de gelo à distância",
+            "41": "Nevoeiro parcial",
+            "42": "Nevoeiro com céu visível",
+            "43": "Nevoeiro com céu obscurecido",
+            "44": "Nevoeiro com céu visível",
+            "45": "Nevoeiro com céu obscurecido",
+            "46": "Nevoeiro com céu visível e tendência de piorar",
+            "47": "Nevoeiro com céu obscurecido e tendência de piorar",
+            "48": "Nevoeiro com céu visível",
+            "49": "Nevoeiro com céu obscurecido",
+            "50": "Chuvisco intermitente",
+            "51": "Chuvisco contínuo",
+            "52": "Chuvisco intermitente",
+            "53": "Chuvisco contínuo",
+            "54": "Chuvisco intermitente",
+            "55": "Chuvisco contínuo",
+            "56": "Chuvisco congelante, fraco",
+            "57": "Chuvisco congelante, moderado ou forte",
+            "58": "Chuvisco e chuva, fraco",
+            "59": "Chuvisco e chuva, moderado ou forte",
+            "60": "Chuva intermitente",
+            "61": "Chuva contínua",
+            "62": "Chuva intermitente",
+            "63": "Chuva contínua",
+            "64": "Chuva intermitente",
+            "65": "Chuva contínua",
+            "66": "Chuva congelante, fraca",
+            "67": "Chuva congelante, moderada ou forte",
+            "68": "Chuva ou chuvisco e neve, fraca",
+            "69": "Chuva ou chuvisco e neve, moderada ou forte",
+            "70": "Queda intermitente de flocos de neve",
+            "71": "Queda contínua de flocos de neve",
+            "72": "Queda intermitente de flocos de neve",
+            "73": "Queda contínua de flocos de neve",
+            "74": "Queda intermitente de flocos de neve",
+            "75": "Queda contínua de flocos de neve",
+            "76": "Pó de diamante (com ou sem nevoeiro)",
+            "77": "Grãos de neve (com ou sem nevoeiro)",
+            "78": "Cristais de neve isolados em forma de estrela",
+            "79": "Granizo",
+            "80": "Pancadas de chuva, fraca",
+            "81": "Pancadas de chuva, moderada ou forte",
+            "82": "Pancadas de chuva, violenta",
+            "83": "Pancadas de chuva e neve misturados, fraca",
+            "84": "Pancadas de chuva e neve misturados, moderada ou forte",
+            "85": "Pancadas de neve, fraca",
+            "86": "Pancadas de neve, moderada ou forte",
+            "87": "Pancadas de grãos de neve ou granizo pequeno",
+            "88": "Pancadas de grãos de neve ou granizo pequeno",
+            "89": "Pancadas de granizo, sem trovoada",
+            "90": "Pancadas de granizo, sem trovoada",
+            "91": "Chuva fraca no momento da observação",
+            "92": "Chuva moderada ou forte no momento da observação",
+            "93": "Neve fraca, ou chuva e neve misturados ou granizo",
+            "94": "Neve moderada ou forte, ou chuva e neve misturados",
+            "95": "Trovoada, fraca ou moderada, sem granizo, com chuva e/ou neve",
+            "96": "Trovoada, fraca ou moderada, com granizo",
+            "97": "Trovoada, forte, sem granizo, com chuva e/ou neve",
+            "98": "Trovoada combinada com tempestade de poeira ou areia",
+            "99": "Trovoada, forte, com granizo"
+        };
+
+        const WX_API_CACHE = {};
+
+        function getWxConfig() {
+            try { return JSON.parse(localStorage.getItem('wxConfig') || '{}') || {}; } catch(e) { return {}; }
+        }
+
+        function getDefaultCriteria() {
+            return {
+                cloud_cover: { rule: 'max', yellow: 50, red: 80 },
+                cloud_cover_low: { rule: 'max', yellow: 25, red: 50 },
+                visibility: { rule: 'min', yellow: 5000, red: 1500 },
+                apparent_temperature: { rule: 'range', comfortMin: -5, comfortMax: 40, marginalMin: -15, marginalMax: 45 },
+                precipitation_probability: { rule: 'max', yellow: 30, red: 60 },
+                precipitation: { rule: 'max', yellow: 1, red: 5 },
+                showers: { rule: 'max', yellow: 0, red: 2 },
+                wind_speed_80m: { rule: 'max', yellow: 20, red: 30 }
+            };
+        }
+
+        function getDefaultWeatherCodes() {
+            const result = {};
+            [0,1,2,3].forEach(c => result[String(c)] = 'green');
+            [4,5,6,7,8,10,11,13,14,15,16,17,18,20,21,25,30,31,32,36,38,40,41,42,43,44,46,48,50,51,52,53,54,55,58,59,60,61,62,63,70,71,72,73,80,81,83,91,92].forEach(c => result[String(c)] = 'yellow');
+            [9,12,19,22,23,24,26,27,28,29,33,34,35,37,39,45,47,49,56,57,64,65,66,67,68,69,74,75,76,77,78,79,82,84,85,86,87,88,89,90,93,94,95,96,97,98,99].forEach(c => result[String(c)] = 'red');
+            return result;
+        }
+
+        function parseCoordStr(str) {
+            const re = /^\s*([NS])\s*(\d+)\s*°\s*([\d.]+)'\s*\/\s*([EW])\s*(\d+)\s*°\s*([\d.]+)'\s*$/i;
+            const m = String(str||'').match(re);
+            if (!m) return null;
+            let lat = parseFloat(m[2]) + parseFloat(m[3]) / 60;
+            let lon = parseFloat(m[5]) + parseFloat(m[6]) / 60;
+            if (m[1].toUpperCase() === 'S') lat = -lat;
+            if (m[4].toUpperCase() === 'W') lon = -lon;
+            return { lat: Math.round(lat*1e6)/1e6, lon: Math.round(lon*1e6)/1e6 };
+        }
+
+        function classifyValue(key, value, criteria) {
+            if (value === null || value === undefined || value === '' || isNaN(parseFloat(value))) return 'gray';
+            const c = criteria && criteria[key];
+            if (!c) return 'green';
+            const v = parseFloat(value);
+            if (c.rule === 'max') {
+                if (v > c.red) return 'red';
+                if (v > c.yellow) return 'yellow';
+                return 'green';
+            } else if (c.rule === 'min') {
+                if (v < c.red) return 'red';
+                if (v < c.yellow) return 'yellow';
+                return 'green';
+            } else if (c.rule === 'range') {
+                if (v >= c.comfortMin && v <= c.comfortMax) return 'green';
+                if (v >= c.marginalMin && v <= c.marginalMax) return 'yellow';
+                return 'red';
+            }
+            return 'green';
+        }
+
+        function classifyCode(code, weatherCodes) {
+            if (code === null || code === undefined) return 'gray';
+            return (weatherCodes && weatherCodes[String(Math.round(code))]) || 'yellow';
+        }
+
+        function aggregateSeverity(severities) {
+            const real = severities.filter(s => s !== 'gray');
+            if (!real.length) return 'gray';
+            if (real.includes('red')) return 'red';
+            if (real.includes('yellow')) return 'yellow';
+            return 'green';
+        }
+
+        function severityEmoji(sev) {
+            return { green: '🟢', yellow: '🟡', red: '🔴', gray: '⬛' }[sev] || '⬛';
+        }
+
+        async function fetchWxForBase(icao, lat, lon) {
+            if (WX_API_CACHE[icao]) return WX_API_CACHE[icao];
+            const params = 'hourly=visibility,apparent_temperature,precipitation_probability,precipitation,showers,weather_code,cloud_cover,cloud_cover_low,wind_speed_80m,wind_direction_80m&models=gfs_seamless&timezone=GMT&wind_speed_unit=kn&forecast_hours=24&past_hours=24';
+            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&${params}`;
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const data = await resp.json();
+            WX_API_CACHE[icao] = data;
+            return data;
+        }
+
+        function getWindowData(wxData, arrIso) {
+            if (!wxData || !wxData.hourly || !arrIso) return null;
+            const times = wxData.hourly.time;
+            const target = new Date(arrIso);
+            const targetHour = `${target.getUTCFullYear()}-${String(target.getUTCMonth()+1).padStart(2,'0')}-${String(target.getUTCDate()).padStart(2,'0')}T${String(target.getUTCHours()).padStart(2,'0')}:00`;
+            const centerIdx = times.indexOf(targetHour);
+            if (centerIdx < 0) return null;
+            const result = [];
+            for (let off = -2; off <= 2; off++) {
+                const i = centerIdx + off;
+                if (i < 0 || i >= times.length) { result.push({ offset: off, missing: true }); continue; }
+                result.push({
+                    offset: off,
+                    iso: times[i],
+                    weather_code: wxData.hourly.weather_code[i],
+                    cloud_cover: wxData.hourly.cloud_cover[i],
+                    cloud_cover_low: wxData.hourly.cloud_cover_low[i],
+                    visibility: wxData.hourly.visibility[i],
+                    apparent_temperature: wxData.hourly.apparent_temperature[i],
+                    precipitation_probability: wxData.hourly.precipitation_probability[i],
+                    precipitation: wxData.hourly.precipitation[i],
+                    showers: wxData.hourly.showers[i],
+                    wind_speed_80m: wxData.hourly.wind_speed_80m[i],
+                    wind_direction_80m: wxData.hourly.wind_direction_80m[i],
+                });
+            }
+            return result;
+        }
+
+        function classifyHour(h, criteria, weatherCodes) {
+            return aggregateSeverity([
+                classifyCode(h.weather_code, weatherCodes),
+                classifyValue('cloud_cover', h.cloud_cover, criteria),
+                classifyValue('cloud_cover_low', h.cloud_cover_low, criteria),
+                classifyValue('visibility', h.visibility, criteria),
+                classifyValue('apparent_temperature', h.apparent_temperature, criteria),
+                classifyValue('precipitation_probability', h.precipitation_probability, criteria),
+                classifyValue('precipitation', h.precipitation, criteria),
+                classifyValue('showers', h.showers, criteria),
+                classifyValue('wind_speed_80m', h.wind_speed_80m, criteria),
+            ]);
+        }
+
+        const _wxSegmentStore = {};
+        let _wxSegmentList = [];
+
+        async function loadWeatherFlags(segments) {
+            _wxSegmentList = segments;
+            const cfg = getWxConfig();
+            const bases = cfg.bases || {};
+            const criteria = Object.keys(cfg.criteria||{}).length ? cfg.criteria : getDefaultCriteria();
+            const weatherCodes = Object.keys(cfg.weatherCodes||{}).length ? cfg.weatherCodes : getDefaultWeatherCodes();
+
+            const destSet = [...new Set(segments.map(s => s.dest).filter(Boolean))];
+            const wxByDest = {};
+            await Promise.all(destSet.map(async dest => {
+                const coord = bases[dest];
+                if (!coord) return;
+                try { wxByDest[dest] = await fetchWxForBase(dest, coord.lat, coord.lon); }
+                catch(e) { console.warn('WX fetch error for', dest, e.message); wxByDest[dest] = null; }
+            }));
+
+            segments.forEach((seg, idx) => {
+                const btn = document.getElementById(`wxbtn-${idx}`);
+                if (!btn) return;
+                const dest = seg.dest;
+                if (!bases[dest]) {
+                    btn.textContent = '⬛';
+                    btn.title = `${dest}: sem coordenadas cadastradas`;
+                    btn.style.cssText = 'background:none;border:none;font-size:16px;padding:2px;cursor:default;';
+                    btn.onclick = null;
+                    return;
+                }
+                const wxData = wxByDest[dest];
+                if (!wxData) {
+                    btn.textContent = '❓';
+                    btn.title = `${dest}: falha ao buscar dados meteorológicos`;
+                    btn.style.cssText = 'background:none;border:none;font-size:16px;padding:2px;cursor:default;';
+                    btn.onclick = null;
+                    return;
+                }
+                if (!seg.arrDateTimeISO) {
+                    btn.textContent = '⬛';
+                    btn.title = `${dest}: horário de chegada não disponível`;
+                    btn.style.cssText = 'background:none;border:none;font-size:16px;padding:2px;cursor:default;';
+                    return;
+                }
+                const wdow = getWindowData(wxData, seg.arrDateTimeISO);
+                if (!wdow) {
+                    btn.textContent = '⬛';
+                    btn.title = `${dest}: sem dados para ${seg.arrDateTimeISO}`;
+                    btn.style.cssText = 'background:none;border:none;font-size:16px;padding:2px;cursor:default;';
+                    return;
+                }
+                _wxSegmentStore[idx] = { wdow, dest, arrIso: seg.arrDateTimeISO, criteria, weatherCodes };
+                const sev = aggregateSeverity(wdow.filter(h=>!h.missing).map(h => classifyHour(h, criteria, weatherCodes)));
+                btn.textContent = severityEmoji(sev);
+                btn.title = `${dest} ${sev.toUpperCase()} | Clique para detalhes meteorológicos`;
+                btn.style.cssText = 'background:none;border:none;font-size:16px;padding:2px;cursor:pointer;';
+                btn.onclick = () => showWxModal(idx);
+            });
+        }
+
+        function showWxModal(idx) {
+            const entry = _wxSegmentStore[idx];
+            if (!entry) return;
+            const { wdow, dest, arrIso, criteria, weatherCodes } = entry;
+
+            const severityBg = { green: '#d5f5e3', yellow: '#fef9e7', red: '#fadbd8', gray: '#ecf0f1' };
+            const severityLabel = { green: 'Verde', yellow: 'Amarelo', red: 'Vermelho', gray: '-' };
+
+            const paramRows = [
+                { key: 'weather_code', label: 'Tempo' },
+                { key: 'cloud_cover', label: 'Nuvens (%)' },
+                { key: 'cloud_cover_low', label: 'Nuvens Baixas (%)' },
+                { key: 'visibility', label: 'Visibilidade (m)' },
+                { key: 'apparent_temperature', label: 'Temp. Aparente (°C)' },
+                { key: 'precipitation_probability', label: 'Prob. Precipitação (%)' },
+                { key: 'precipitation', label: 'Precipitação (mm)' },
+                { key: 'showers', label: 'Pancadas (mm)' },
+                { key: 'wind_speed_80m', label: 'Vento 80m (kt)' },
+                { key: 'wind_direction_80m', label: 'Dir. Vento (°)' },
+            ];
+
+            const hours = wdow;
+            let tableHtml = '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+            tableHtml += '<tr><th style="border:1px solid #ddd;padding:6px;background:#1A6BB5;color:white;">Parâmetro</th>';
+            hours.forEach(h => {
+                const timeLabel = h.missing ? '—' : (h.iso ? h.iso.slice(11,16) + 'Z' : '—');
+                const offsetLabel = h.offset === 0 ? `<b>${timeLabel}<br>(T)</b>` : `${timeLabel}<br>(T${h.offset > 0 ? '+' : ''}${h.offset}h)`;
+                tableHtml += `<th style="border:1px solid #ddd;padding:6px;background:#1A6BB5;color:white;text-align:center;">${offsetLabel}</th>`;
+            });
+            tableHtml += '</tr>';
+
+            paramRows.forEach(({ key, label }) => {
+                tableHtml += `<tr><td style="border:1px solid #ddd;padding:6px;font-weight:bold;">${escapeHtml(label)}</td>`;
+                hours.forEach(h => {
+                    if (h.missing) { tableHtml += '<td style="border:1px solid #ddd;padding:6px;text-align:center;color:#aaa;">—</td>'; return; }
+                    const raw = h[key];
+                    let display = raw !== null && raw !== undefined ? raw : '—';
+                    let sev;
+                    if (key === 'weather_code') {
+                        sev = classifyCode(raw, weatherCodes);
+                        display = WEATHER_CODE_PT_IDX[String(Math.round(raw))] || display;
+                    } else if (key === 'wind_direction_80m') {
+                        sev = 'gray';
+                        if (raw !== null && raw !== undefined) display = raw + '°';
+                    } else {
+                        sev = classifyValue(key, raw, criteria);
+                    }
+                    const bg = severityBg[sev] || '';
+                    tableHtml += `<td style="border:1px solid #ddd;padding:6px;text-align:center;background:${bg};" title="${severityLabel[sev]}">${escapeHtml(String(display))}</td>`;
+                });
+                tableHtml += '</tr>';
+            });
+
+            tableHtml += '<tr><td style="border:1px solid #ddd;padding:6px;font-weight:bold;">Overall</td>';
+            hours.forEach(h => {
+                if (h.missing) { tableHtml += '<td style="border:1px solid #ddd;padding:6px;text-align:center;color:#aaa;">—</td>'; return; }
+                const sev = classifyHour(h, criteria, weatherCodes);
+                const bg = severityBg[sev] || '';
+                tableHtml += `<td style="border:1px solid #ddd;padding:6px;text-align:center;font-weight:bold;background:${bg};">${severityEmoji(sev)}</td>`;
+            });
+            tableHtml += '</tr></table>';
+
+            const modal = document.getElementById('wxModal');
+            document.getElementById('wxModalTitle').textContent = `Meteorologia — ${dest} — Chegada: ${arrIso ? arrIso.replace('T',' ').slice(0,16) + 'Z' : '—'}`;
+            document.getElementById('wxModalBody').innerHTML = tableHtml;
+            modal.style.display = 'flex';
+        }
+
+        function closeWxModal() {
+            document.getElementById('wxModal').style.display = 'none';
+        }
     </script>
+<div id="wxModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;align-items:center;justify-content:center;">
+    <div style="background:#fff;border-radius:8px;padding:20px;max-width:900px;width:95%;max-height:90vh;overflow-y:auto;box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 id="wxModalTitle" style="margin:0;color:#1A6BB5;"></h3>
+            <button onclick="closeWxModal()" style="background:#E74C3C;color:white;border:none;padding:4px 12px;border-radius:3px;cursor:pointer;font-weight:bold;">✕ Fechar</button>
+        </div>
+        <div id="wxModalBody"></div>
+    </div>
+</div>
 </body>
 </html>
