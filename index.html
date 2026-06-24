@@ -51,6 +51,7 @@
         <a href="analise.html">🔍 Análise</a>
         <a href="lembretes.html">🔔 Eventos e Lembretes</a>
         <a href="meteo.html">☁️ Configuração Meteo</a>
+        <a href="paises.html">🌍 Países das Bases</a>
     </div>
 
     <div class="container">
@@ -260,6 +261,13 @@
                 .replace(/'/g, '&#039;');
         }
 
+        function formatGroundTime(mins) {
+            if (mins == null) return '-';
+            const h = Math.floor(Math.abs(mins) / 60);
+            const m = Math.abs(mins) % 60;
+            return `${mins < 0 ? '-' : ''}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} (${mins} min)`;
+        }
+
         function renderTimeline(segments, fileName) {
             const output = document.getElementById('timelineOutput');
             if (!segments.length) {
@@ -282,19 +290,21 @@
             regs.forEach((reg) => {
                 const list = grouped[reg].slice().sort((a, b) => new Date(a.depDateTimeISO) - new Date(b.depDateTimeISO));
                 html += `<div class="ac-block"><div class="ac-title">Matrícula: ${escapeHtml(reg)}</div>`;
-                html += '<table><tr><th>Data</th><th>Voo</th><th>Orig</th><th>Dest</th><th>STD</th><th>STA/ETA</th><th>Atraso (min)</th><th>Ground até próximo (min)</th><th>Voo anterior</th><th>Voo sucessor</th><th>Meteo</th></tr>';
+                html += '<table><tr><th>Data</th><th>Voo</th><th>Orig</th><th>Dest</th><th>Fleet</th><th>STD</th><th>STA/ETA</th><th>Atraso (min)</th><th>Ground próx. (HH:MM)</th><th>Voo anterior</th><th>Voo sucessor</th><th>Meteo</th></tr>';
                 list.forEach((segment) => {
                     const arrRef = segment.eta || segment.sta || '-';
+                    const groundFmt = formatGroundTime(segment.groundTimeToNextMinutes);
                     orderedSegments.push(segment);
                     html += `<tr>
                         <td>${escapeHtml(segment.dateRaw)}</td>
                         <td>${escapeHtml(segment.flightNumber || '-')}</td>
                         <td>${escapeHtml(segment.orig)}</td>
                         <td>${escapeHtml(segment.dest)}</td>
+                        <td>${escapeHtml(segment.fleetType || segment.reg || '-')}</td>
                         <td>${escapeHtml(segment.std || '-')}</td>
                         <td>${escapeHtml(arrRef)}</td>
                         <td>${segment.delayMinutes == null ? '-' : segment.delayMinutes}</td>
-                        <td>${segment.groundTimeToNextMinutes == null ? '-' : segment.groundTimeToNextMinutes}</td>
+                        <td>${escapeHtml(groundFmt)}</td>
                         <td>${escapeHtml(segment.previousLabel || '-')}</td>
                         <td>${escapeHtml(segment.nextLabel || '-')}</td>
                         <td><button class="wx-btn" id="wxbtn-${wxBtnIdx}" title="Carregando...">⏳</button></td>

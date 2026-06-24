@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Países das Bases</title>
+    <style>
+        body { font-family: Calibri, sans-serif; margin: 20px; background-color: #f4f6f9; }
+        h2 { color: #27AE60; border-bottom: 2px solid #27AE60; padding-bottom: 5px; }
+        .nav { margin-bottom: 20px; background: #fff; padding: 10px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .nav a { margin-right: 15px; text-decoration: none; color: #2c3e50; font-weight: bold; }
+        .nav a:hover { color: #3498DB; }
+        .form-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; background: #fff; padding: 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .form-group { display: flex; flex-direction: column; }
+        label { font-weight: bold; margin-bottom: 5px; font-size: 13px; }
+        input, select { padding: 6px; border: 1px solid #ccc; border-radius: 3px; font-family: Calibri; }
+        .actions { grid-column: span 4; display: flex; gap: 10px; flex-wrap: wrap; }
+        button { background-color: #27AE60; color: white; border: none; padding: 10px 12px; cursor: pointer; font-weight: bold; border-radius: 3px; }
+        button:hover { background-color: #1e8449; }
+        .secondary { background-color: #7f8c8d; }
+        .secondary:hover { background-color: #5d6d6f; }
+        .hint { font-size: 12px; color: #666; margin-bottom: 12px; }
+        .backup-panel { background: #fff; padding: 16px 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .backup-panel h3 { margin-top: 0; color: #2c3e50; }
+        .backup-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+        .status-message { margin-top: 10px; font-size: 13px; font-weight: bold; }
+        .status-message.success { color: #1e8449; }
+        .status-message.error { color: #c0392b; }
+        .status-message.info { color: #2c3e50; }
+        table { width: 100%; border-collapse: collapse; background: #fff; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; font-size: 13px; }
+        th { background-color: #27AE60; color: white; position: sticky; top: 0; }
+        .table-wrap { overflow-x: auto; background: #fff; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .edit-btn { background: #3498DB; color: white; border: none; padding: 4px 8px; margin-right: 4px; border-radius: 3px; cursor: pointer; }
+        .delete-btn { background: #ff4d4d; color: white; border: none; padding: 4px 8px; border-radius: 3px; cursor: pointer; }
+        .suggest-panel { background: #fff; padding: 16px 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .suggest-panel h3 { margin-top: 0; color: #2c3e50; }
+        .base-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .base-chip { background: #eaf4fb; border: 1px solid #85c1e9; color: #1a5276; padding: 3px 10px; border-radius: 12px; font-size: 12px; cursor: pointer; }
+        .base-chip:hover { background: #d6eaf8; }
+    </style>
+</head>
+<body>
+
+    <div class="nav">
+        <a href="index.html">⏱ Timeline da Malha</a>
+        <a href="restricoes.html">⚠️ Cadastro de Restrições</a>
+        <a href="analise.html">🔍 Análise</a>
+        <a href="lembretes.html">🔔 Eventos e Lembretes</a>
+        <a href="meteo.html">☁️ Configuração Meteo</a>
+        <a href="paises.html">🌍 Países das Bases</a>
+    </div>
+
+    <h2>Cadastro de Países das Bases</h2>
+    <div class="hint">Mapeie cada base (código IATA) ao seu respectivo país. Usado na lógica de Customs: mesma origem e destino no mesmo país elimina a restrição.</div>
+
+    <div class="suggest-panel">
+        <h3>Bases detectadas na malha</h3>
+        <div class="hint">Clique em uma base para pré-preencher o formulário abaixo.</div>
+        <div class="base-chips" id="baseChips"></div>
+    </div>
+
+    <div class="backup-panel">
+        <h3>Backup e restauração</h3>
+        <div class="hint">Baixe um arquivo JSON para guardar o mapeamento ou importe um backup já salvo.</div>
+        <div class="backup-actions">
+            <button type="button" onclick="downloadJson()">⬇️ Baixar arquivo JSON</button>
+            <button type="button" class="secondary" onclick="triggerImport()">⬆️ Subir arquivo JSON</button>
+            <input type="file" id="importFile" accept="application/json,.json" onchange="importFromFile(event)" hidden>
+        </div>
+        <div id="backupStatus" class="status-message info">Nenhum backup importado nesta sessão.</div>
+    </div>
+
+    <div class="form-grid">
+        <input type="hidden" id="editingBase" value="">
+
+        <div class="form-group">
+            <label>Base (IATA)</label>
+            <input type="text" id="baseIata" maxlength="4" placeholder="ex: LUX" style="text-transform:uppercase">
+        </div>
+        <div class="form-group">
+            <label>País</label>
+            <input type="text" id="basePais" placeholder="ex: Luxembourg" list="paisSuggestions">
+            <datalist id="paisSuggestions">
+                <option value="Luxembourg">
+                <option value="Germany">
+                <option value="France">
+                <option value="Belgium">
+                <option value="Netherlands">
+                <option value="United Kingdom">
+                <option value="United States">
+                <option value="Canada">
+                <option value="Brazil">
+                <option value="Portugal">
+                <option value="Spain">
+                <option value="Italy">
+                <option value="Switzerland">
+                <option value="Austria">
+                <option value="Poland">
+                <option value="Czech Republic">
+                <option value="Hungary">
+                <option value="Romania">
+                <option value="Turkey">
+                <option value="UAE">
+                <option value="Qatar">
+                <option value="China">
+                <option value="Japan">
+                <option value="South Korea">
+                <option value="India">
+                <option value="Singapore">
+                <option value="Hong Kong">
+                <option value="Australia">
+                <option value="South Africa">
+                <option value="Mexico">
+                <option value="Colombia">
+                <option value="Chile">
+                <option value="Argentina">
+            </datalist>
+        </div>
+        <div class="form-group" style="grid-column: span 2;"></div>
+
+        <div class="actions">
+            <button onclick="saveEntry()">Salvar</button>
+            <button class="secondary" onclick="clearForm()">Limpar formulário</button>
+        </div>
+    </div>
+
+    <h3>Mapeamento cadastrado</h3>
+    <div class="table-wrap">
+        <table id="paisesTable">
+            <thead>
+                <tr>
+                    <th>Base (IATA)</th>
+                    <th>País</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <script>
+        const STORAGE_KEY = 'basePaisesMap';
+
+        function normalize(value) {
+            return String(value || '').trim();
+        }
+
+        function toUpper(value) {
+            return normalize(value).toUpperCase();
+        }
+
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function setBackupStatus(message, type) {
+            const status = document.getElementById('backupStatus');
+            status.textContent = message;
+            status.className = `status-message ${type || 'info'}`;
+        }
+
+        function getMap() {
+            try {
+                return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') || {};
+            } catch (e) {
+                return {};
+            }
+        }
+
+        function setMap(map) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(map));
+        }
+
+        function clearForm() {
+            document.getElementById('editingBase').value = '';
+            document.getElementById('baseIata').value = '';
+            document.getElementById('basePais').value = '';
+        }
+
+        function saveEntry() {
+            const base = toUpper(document.getElementById('baseIata').value);
+            const pais = normalize(document.getElementById('basePais').value);
+            if (!base) { alert('Informe o código IATA da base.'); return; }
+            if (!pais) { alert('Informe o país.'); return; }
+            if (!/^[A-Z]{3,4}$/.test(base)) { alert('O código IATA deve ter 3 ou 4 letras (ex: LUX, ELLX).'); return; }
+            const map = getMap();
+            map[base] = pais;
+            setMap(map);
+            renderTable();
+            clearForm();
+        }
+
+        function editEntry(base) {
+            const map = getMap();
+            if (!map[base]) return;
+            document.getElementById('editingBase').value = base;
+            document.getElementById('baseIata').value = base;
+            document.getElementById('basePais').value = map[base];
+        }
+
+        function deleteEntry(base) {
+            if (!confirm(`Excluir mapeamento da base ${base}?`)) return;
+            const map = getMap();
+            delete map[base];
+            setMap(map);
+            renderTable();
+            if (document.getElementById('editingBase').value === base) clearForm();
+        }
+
+        function renderTable() {
+            const map = getMap();
+            const tbody = document.querySelector('#paisesTable tbody');
+            tbody.innerHTML = '';
+            const entries = Object.entries(map).sort((a, b) => a[0].localeCompare(b[0]));
+            if (!entries.length) {
+                tbody.innerHTML = '<tr><td colspan="3" style="color:#888">Nenhum mapeamento cadastrado.</td></tr>';
+                return;
+            }
+            entries.forEach(([base, pais]) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><b>${escapeHtml(base)}</b></td>
+                    <td>${escapeHtml(pais)}</td>
+                    <td>
+                        <button class="edit-btn" onclick="editEntry('${escapeHtml(base)}')">Editar</button>
+                        <button class="delete-btn" onclick="deleteEntry('${escapeHtml(base)}')">Excluir</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderBaseChips() {
+            const segments = JSON.parse(localStorage.getItem('currentDayRepSegments') || '[]');
+            const map = getMap();
+            const bases = new Set();
+            segments.forEach((s) => {
+                if (s.orig) bases.add(String(s.orig).toUpperCase());
+                if (s.dest) bases.add(String(s.dest).toUpperCase());
+            });
+            const container = document.getElementById('baseChips');
+            container.innerHTML = '';
+            if (!bases.size) {
+                container.innerHTML = '<span style="color:#888;font-size:12px">Nenhuma malha carregada em index.html ainda.</span>';
+                return;
+            }
+            Array.from(bases).sort().forEach((base) => {
+                const chip = document.createElement('span');
+                chip.className = 'base-chip';
+                const pais = map[base] ? ` (${map[base]})` : ' ⚠️ sem país';
+                chip.textContent = `${base}${pais}`;
+                chip.title = 'Clique para pré-preencher formulário';
+                chip.addEventListener('click', () => {
+                    document.getElementById('baseIata').value = base;
+                    if (map[base]) document.getElementById('basePais').value = map[base];
+                    document.getElementById('editingBase').value = map[base] ? base : '';
+                    document.getElementById('baseIata').scrollIntoView({ behavior: 'smooth' });
+                });
+                container.appendChild(chip);
+            });
+        }
+
+        function triggerImport() {
+            document.getElementById('importFile').click();
+        }
+
+        function downloadJson() {
+            const map = getMap();
+            const payload = { version: 1, exportedAt: new Date().toISOString(), source: 'VerificaMalha/paises.html', basePaisesMap: map };
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
+            link.href = url;
+            link.download = `paises-backup-${stamp}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            setBackupStatus(`Backup exportado com sucesso (${Object.keys(map).length} entrada(s)).`, 'success');
+        }
+
+        function importFromFile(event) {
+            const input = event.target;
+            const file = input.files && input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(loadEvent) {
+                try {
+                    const parsed = JSON.parse(loadEvent.target.result);
+                    const rawMap = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+                        ? (parsed.basePaisesMap || parsed)
+                        : null;
+                    if (!rawMap || typeof rawMap !== 'object' || Array.isArray(rawMap)) {
+                        throw new Error('O arquivo JSON não contém um mapeamento base→país válido.');
+                    }
+                    const sanitized = {};
+                    Object.entries(rawMap).forEach(([k, v]) => {
+                        const base = toUpper(k);
+                        const pais = normalize(v);
+                        if (base && pais) sanitized[base] = pais;
+                    });
+                    setMap(sanitized);
+                    renderTable();
+                    renderBaseChips();
+                    clearForm();
+                    setBackupStatus(`Importação concluída com sucesso (${Object.keys(sanitized).length} entrada(s)).`, 'success');
+                } catch (error) {
+                    console.error('Falha ao importar:', error);
+                    setBackupStatus(`Falha ao importar arquivo: ${error.message}`, 'error');
+                    alert(`Falha ao importar arquivo JSON: ${error.message}`);
+                } finally {
+                    input.value = '';
+                }
+            };
+            reader.onerror = function() {
+                setBackupStatus('Falha ao ler o arquivo selecionado.', 'error');
+                input.value = '';
+            };
+            reader.readAsText(file, 'utf-8');
+        }
+
+        // Force uppercase in base field
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('baseIata').addEventListener('input', function() {
+                this.value = this.value.toUpperCase();
+            });
+        });
+
+        window.onload = function() {
+            renderTable();
+            renderBaseChips();
+        };
+    </script>
+</body>
+</html>
