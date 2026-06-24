@@ -42,6 +42,7 @@
         <a href="analise.html">🔍 Análise</a>
         <a href="lembretes.html">🔔 Eventos e Lembretes</a>
         <a href="meteo.html">☁️ Configuração Meteo</a>
+        <a href="paises.html">🌍 Países das Bases</a>
     </div>
 
     <h2>Gerenciar Restrições de Malha</h2>
@@ -78,6 +79,7 @@
                 <option value="Procedure">Procedure</option>
                 <option value="Max Ground Time">Max Ground Time</option>
                 <option value="Max Delay Time">Max Delay Time</option>
+                <option value="Max Duty Time">Max Duty Time</option>
                 <option value="Outros">Outros</option>
             </select>
         </div>
@@ -88,8 +90,20 @@
         <div class="form-group"><label>Day</label><input type="number" id="day" min="1" max="31" placeholder="1-31"></div>
         <div class="form-group"><label>Month</label><input type="number" id="month" min="1" max="12" placeholder="1-12"></div>
         <div class="form-group"><label>Year</label><input type="number" id="year" min="2000" max="2100" placeholder="2026"></div>
-        <div class="form-group"><label>Fleet_Type (AC)</label><input type="text" id="fleetType" list="fleetTypeOptions" placeholder="ex: 748 / 74Y / matrícula"></div>
+        <div class="form-group"><label>Fleet_Type (AC)</label><input type="text" id="fleetType" list="fleetTypeOptions" placeholder="ex: 748 / 74Y"></div>
         <datalist id="fleetTypeOptions"></datalist>
+
+        <div class="form-group"><label>Matrícula específica (AC)</label><input type="text" id="specificAcft" list="specificAcftOptions" placeholder="ex: LX-UCV" maxlength="10"></div>
+        <datalist id="specificAcftOptions"></datalist>
+
+        <div class="form-group" style="grid-column: span 2;">
+            <label>Escopo de frota</label>
+            <div style="display:flex; gap:16px; align-items:center; margin-top:4px;">
+                <label style="font-weight:normal; display:flex; align-items:center; gap:4px;"><input type="radio" name="fleetScope" id="fleetScopeAll" value="All" checked> Toda a frota</label>
+                <label style="font-weight:normal; display:flex; align-items:center; gap:4px;"><input type="radio" name="fleetScope" id="fleetScopeCLX" value="CLX"> Somente CLX (exceto ICV)</label>
+                <label style="font-weight:normal; display:flex; align-items:center; gap:4px;"><input type="radio" name="fleetScope" id="fleetScopeICV" value="ICV"> Somente ICV (LX-UCV/VCV/WCV/YCV)</label>
+            </div>
+        </div>
 
         <div class="form-group"><label>Init_Hour1</label><input type="time" id="initHour1"></div>
         <div class="form-group"><label>End_Hour1</label><input type="time" id="endHour1"></div>
@@ -128,6 +142,8 @@
                     <th>H2</th>
                     <th>H3</th>
                     <th>Fleet_Type</th>
+                    <th>Matrícula</th>
+                    <th>Escopo Frota</th>
                     <th>Max Delay</th>
                     <th>Max Ground</th>
                     <th>Max Duty</th>
@@ -197,6 +213,8 @@
                 initHour3: normalize(item.initHour3),
                 endHour3: normalize(item.endHour3),
                 fleetType: toUpper(item.fleetType),
+                specificAcft: toUpper(item.specificAcft),
+                fleetScope: normalize(item.fleetScope) || 'All',
                 maxDelayTime: toNumberOrEmpty(item.maxDelayTime),
                 maxGroundTime: toNumberOrEmpty(item.maxGroundTime),
                 maxDutyTime: toNumberOrEmpty(item.maxDutyTime),
@@ -229,6 +247,8 @@
                 initHour3: '',
                 endHour3: '',
                 fleetType: item.acft || '',
+                specificAcft: '',
+                fleetScope: 'All',
                 maxDelayTime: '',
                 maxGroundTime: '',
                 maxDutyTime: '',
@@ -249,10 +269,11 @@
             document.getElementById('restrictionType').value = 'Customs';
             [
                 'arptIataArr','arptIataOrig','weekday','day','month','year','initHour1','endHour1','initHour2','endHour2',
-                'initHour3','endHour3','fleetType','maxDelayTime','maxGroundTime','maxDutyTime','minCrewComposition','expirationDate','description'
+                'initHour3','endHour3','fleetType','specificAcft','maxDelayTime','maxGroundTime','maxDutyTime','minCrewComposition','expirationDate','description'
             ].forEach((id) => {
                 document.getElementById(id).value = '';
             });
+            document.getElementById('fleetScopeAll').checked = true;
         }
 
         function readForm() {
@@ -273,6 +294,8 @@
                 initHour3: normalize(document.getElementById('initHour3').value),
                 endHour3: normalize(document.getElementById('endHour3').value),
                 fleetType: toUpper(document.getElementById('fleetType').value),
+                specificAcft: toUpper(document.getElementById('specificAcft').value),
+                fleetScope: document.querySelector('input[name="fleetScope"]:checked')?.value || 'All',
                 maxDelayTime: toNumberOrEmpty(document.getElementById('maxDelayTime').value),
                 maxGroundTime: toNumberOrEmpty(document.getElementById('maxGroundTime').value),
                 maxDutyTime: toNumberOrEmpty(document.getElementById('maxDutyTime').value),
@@ -376,6 +399,8 @@
                     <td>${escapeHtml(formatHourWindow(item.initHour2, item.endHour2))}</td>
                     <td>${escapeHtml(formatHourWindow(item.initHour3, item.endHour3))}</td>
                     <td>${escapeHtml(item.fleetType || '—')}</td>
+                    <td>${escapeHtml(item.specificAcft || '—')}</td>
+                    <td>${escapeHtml(item.fleetScope || 'All')}</td>
                     <td>${item.maxDelayTime === '' ? '—' : item.maxDelayTime}</td>
                     <td>${item.maxGroundTime === '' ? '—' : item.maxGroundTime}</td>
                     <td>${item.maxDutyTime === '' ? '—' : item.maxDutyTime}</td>
@@ -422,6 +447,11 @@
             document.getElementById('initHour3').value = item.initHour3 || '';
             document.getElementById('endHour3').value = item.endHour3 || '';
             document.getElementById('fleetType').value = item.fleetType || '';
+            document.getElementById('specificAcft').value = item.specificAcft || '';
+            const scope = item.fleetScope || 'All';
+            const scopeEl = document.getElementById(`fleetScope${scope}`);
+            if (scopeEl) scopeEl.checked = true;
+            else document.getElementById('fleetScopeAll').checked = true;
             document.getElementById('maxDelayTime').value = item.maxDelayTime === '' ? '' : item.maxDelayTime;
             document.getElementById('maxGroundTime').value = item.maxGroundTime === '' ? '' : item.maxGroundTime;
             document.getElementById('maxDutyTime').value = item.maxDutyTime === '' ? '' : item.maxDutyTime;
@@ -440,17 +470,25 @@
 
         function fillFleetTypeOptions() {
             const segments = JSON.parse(localStorage.getItem('currentDayRepSegments') || '[]');
-            const values = new Set();
+            const fleetValues = new Set();
+            const acftValues = new Set();
             segments.forEach((segment) => {
-                if (segment.fleetType) values.add(String(segment.fleetType).toUpperCase());
-                if (segment.reg) values.add(String(segment.reg).toUpperCase());
+                if (segment.fleetType) fleetValues.add(String(segment.fleetType).toUpperCase());
+                if (segment.reg) acftValues.add(String(segment.reg).toUpperCase());
             });
             const datalist = document.getElementById('fleetTypeOptions');
             datalist.innerHTML = '';
-            Array.from(values).sort().forEach((value) => {
+            Array.from(fleetValues).sort().forEach((value) => {
                 const option = document.createElement('option');
                 option.value = value;
                 datalist.appendChild(option);
+            });
+            const acftDatalist = document.getElementById('specificAcftOptions');
+            acftDatalist.innerHTML = '';
+            Array.from(acftValues).sort().forEach((value) => {
+                const option = document.createElement('option');
+                option.value = value;
+                acftDatalist.appendChild(option);
             });
         }
 

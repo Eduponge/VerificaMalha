@@ -44,6 +44,7 @@
         <a href="analise.html">🔍 Análise</a>
         <a href="lembretes.html">🔔 Eventos e Lembretes</a>
         <a href="meteo.html">☁️ Configuração Meteo</a>
+        <a href="paises.html">🌍 Países das Bases</a>
     </div>
 
     <div class="container">
@@ -285,9 +286,114 @@
             return dep <= exp;
         }
 
-        function evaluateRestrictionAgainstSegment(restriction, segment) {
+        const ICV_REGS = new Set(['LX-UCV', 'LX-VCV', 'LX-WCV', 'LX-YCV']);
+
+        function getBasePaisesMap() {
+            try { return JSON.parse(localStorage.getItem('basePaisesMap') || '{}') || {}; } catch (e) { return {}; }
+        }
+
+        function matchesFleetScope(restriction, segment) {
+            const scope = norm(restriction.fleetScope || 'All');
+            if (!scope || scope === 'All') return true;
+            const reg = upper(segment.reg);
+            if (scope === 'ICV') return ICV_REGS.has(reg);
+            if (scope === 'CLX') return !ICV_REGS.has(reg);
+            return true;
+        }
+
+        function hasTimeWindow(restriction) {
+            return (norm(restriction.initHour1) && norm(restriction.endHour1)) ||
+                   (norm(restriction.initHour2) && norm(restriction.endHour2)) ||
+                   (norm(restriction.initHour3) && norm(restriction.endHour3));
+        }
+
+        function buildGroundWindows(segments) {
+            const byReg = {};
+            segments.forEach((s) => {
+                if (!byReg[s.reg]) byReg[s.reg] = [];
+                byReg[s.reg].push(s);
+            });
+            const windows = [];
+            Object.values(byReg).forEach((list) => {
+                list.sort((a, b) => new Date(a.depDateTimeISO || '1970-01-01') - new Date(b.depDateTimeISO || '1970-01-01'));
+                list.forEach((seg, idx) => {
+                    if (!seg.arrDateTimeISO) return;
+                    const startMs = new Date(seg.arrDateTimeISO).getTime();
+                    if (Number.isNaN(startMs)) return;
+                    let endMs = null;
+                    if (idx + 1 < list.length && list[idx + 1].depDateTimeISO) {
+                        endMs = new Date(list[idx + 1].depDateTimeISO).getTime();
+                        if (Number.isNaN(endMs)) endMs = null;
+                    }
+                    if (endMs == null) endMs = startMs + 24 * 60 * 60 * 1000;
+                    windows.push({ reg: upper(seg.reg), base: upper(seg.dest), startMs, endMs, segmentId: seg.id });
+                });
+            });
+            return windows;
+        }
+
+        function evaluateMultipleOps(restriction, segment, groundWindows) {
+            const base = upper(restriction.arptIataArr);
+            const segBase = upper(segment.dest);
+            if (base && base !== segBase) return { pass: false, reason: ['Base não coincide com restrição Multiple Ops'] };
+
+            const myWindow = groundWindows.find((w) => w.segmentId === segment.id);
+            if (!myWindow) return { pass: false, reason: ['Sem janela de solo calculada para este segmento'] };
+
+            const overlapping = groundWindows.filter((w) =>
+                w.base === myWindow.base &&
+                w.reg !== myWindow.reg &&
+                w.startMs < myWindow.endMs &&
+                w.endMs > myWindow.startMs
+            );
+
+            if (!overlapping.length) return { pass: false, reason: ['Sem sobreposição de aeronaves no solo'] };
+
+            const reasons = [
+                `Multiple Ops: ${overlapping.length} outra(s) aeronave(s) no solo em ${myWindow.base}`,
+                `Aeronaves simultâneas: ${overlapping.map((w) => w.reg).join(', ')}`
+            ];
+            return { pass: true, reason: reasons };
+        }
+
+        function evaluateRestrictionAgainstSegment(restriction, segment, context) {
+            const ctx = context || {};
             if (!isRestrictionActive(restriction, segment)) {
                 return { pass: false, reason: ['Restrição expirada para a data do segmento'] };
+            }
+
+            // Fleet scope filter
+            if (!matchesFleetScope(restriction, segment)) {
+                return { pass: false, reason: ['Fora do escopo de frota da restrição'] };
+            }
+
+            // Specific aircraft filter
+            if (restriction.specificAcft && upper(restriction.specificAcft)) {
+                if (upper(restriction.specificAcft) !== upper(segment.reg)) {
+                    return { pass: false, reason: ['Matrícula não coincide com restrição'] };
+                }
+            }
+
+            const rType = upper(restriction.restrictionType || '');
+
+            // Multiple Ops: special handling
+            if (rType === 'MULTIPLE OPS') {
+                return evaluateMultipleOps(restriction, segment, ctx.groundWindows || []);
+            }
+
+            // Customs: special handling
+            if (rType === 'CUSTOMS') {
+                // Only evaluate customs restrictions that have a time frame
+                if (!hasTimeWindow(restriction)) {
+                    return { pass: false, reason: ['Customs sem time frame: não avaliado'] };
+                }
+                // Check country mapping
+                const paisesMap = ctx.basePaisesMap || {};
+                const origCountry = upper(paisesMap[upper(segment.orig)] || '');
+                const destCountry = upper(paisesMap[upper(segment.dest)] || '');
+                if (origCountry && destCountry && origCountry === destCountry) {
+                    return { pass: false, reason: [`Origem e destino no mesmo país (${origCountry}): Customs não aplicável`] };
+                }
             }
 
             const reasons = [];
@@ -358,6 +464,16 @@
                 reasons.push(`Duty ${Number.isFinite(dutyMinutes) ? dutyMinutes : '-'} min > limite ${limit} min`);
             }
 
+            // Add country info for customs events
+            if (rType === 'CUSTOMS') {
+                const paisesMap = ctx.basePaisesMap || {};
+                const origCountry = upper(paisesMap[upper(segment.orig)] || '');
+                const destCountry = upper(paisesMap[upper(segment.dest)] || '');
+                if (origCountry || destCountry) {
+                    reasons.push(`País origem=${origCountry || '?'} / País destino=${destCountry || '?'}`);
+                }
+            }
+
             const pass = checks.every(Boolean);
             return { pass, reason: reasons };
         }
@@ -401,10 +517,13 @@
         }
 
         function analyze(segments, restrictions) {
+            const basePaisesMap = getBasePaisesMap();
+            const groundWindows = buildGroundWindows(segments);
+            const context = { basePaisesMap, groundWindows };
             const events = [];
             segments.forEach((segment) => {
                 restrictions.forEach((restriction) => {
-                    const result = evaluateRestrictionAgainstSegment(restriction, segment);
+                    const result = evaluateRestrictionAgainstSegment(restriction, segment, context);
                     if (result.pass) {
                         events.push(buildEvent(restriction, segment, result.reason));
                     }
