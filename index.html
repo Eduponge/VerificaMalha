@@ -261,6 +261,13 @@
                 .replace(/'/g, '&#039;');
         }
 
+        function formatGroundTime(mins) {
+            if (mins == null) return '-';
+            const h = Math.floor(Math.abs(mins) / 60);
+            const m = Math.abs(mins) % 60;
+            return `${mins < 0 ? '-' : ''}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} (${mins} min)`;
+        }
+
         function renderTimeline(segments, fileName) {
             const output = document.getElementById('timelineOutput');
             if (!segments.length) {
@@ -286,12 +293,7 @@
                 html += '<table><tr><th>Data</th><th>Voo</th><th>Orig</th><th>Dest</th><th>Fleet</th><th>STD</th><th>STA/ETA</th><th>Atraso (min)</th><th>Ground próx. (HH:MM)</th><th>Voo anterior</th><th>Voo sucessor</th><th>Meteo</th></tr>';
                 list.forEach((segment) => {
                     const arrRef = segment.eta || segment.sta || '-';
-                    const groundFmt = (function(mins) {
-                        if (mins == null) return '-';
-                        const h = Math.floor(Math.abs(mins) / 60);
-                        const m = Math.abs(mins) % 60;
-                        return `${mins < 0 ? '-' : ''}${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')} (${mins} min)`;
-                    })(segment.groundTimeToNextMinutes);
+                    const groundFmt = formatGroundTime(segment.groundTimeToNextMinutes);
                     orderedSegments.push(segment);
                     html += `<tr>
                         <td>${escapeHtml(segment.dateRaw)}</td>

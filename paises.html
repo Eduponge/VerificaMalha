@@ -187,7 +187,7 @@
             const pais = normalize(document.getElementById('basePais').value);
             if (!base) { alert('Informe o código IATA da base.'); return; }
             if (!pais) { alert('Informe o país.'); return; }
-            if (!/^[A-Z]{2,4}$/.test(base)) { alert('O código IATA deve ter entre 2 e 4 letras.'); return; }
+            if (!/^[A-Z]{3,4}$/.test(base)) { alert('O código IATA deve ter 3 ou 4 letras (ex: LUX, ELLX).'); return; }
             const map = getMap();
             map[base] = pais;
             setMap(map);

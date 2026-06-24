@@ -287,6 +287,7 @@
         }
 
         const ICV_REGS = new Set(['LX-UCV', 'LX-VCV', 'LX-WCV', 'LX-YCV']);
+        const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
         function getBasePaisesMap() {
             try { return JSON.parse(localStorage.getItem('basePaisesMap') || '{}') || {}; } catch (e) { return {}; }
@@ -325,7 +326,7 @@
                         endMs = new Date(list[idx + 1].depDateTimeISO).getTime();
                         if (Number.isNaN(endMs)) endMs = null;
                     }
-                    if (endMs == null) endMs = startMs + 24 * 60 * 60 * 1000;
+                    if (endMs == null) endMs = startMs + MS_PER_DAY;
                     windows.push({ reg: upper(seg.reg), base: upper(seg.dest), startMs, endMs, segmentId: seg.id });
                 });
             });
