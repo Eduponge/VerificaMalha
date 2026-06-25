@@ -184,6 +184,9 @@
         }
 
         function segmentTimeMinutes(segment) {
+            // Usar ETD como referência de partida quando disponível; STD só como fallback
+            const fromEtd = parseTimeToMinutes(segment.etd);
+            if (fromEtd != null) return fromEtd;
             const fromStd = parseTimeToMinutes(segment.std);
             if (fromStd != null) return fromStd;
             const depISO = norm(segment.depDateTimeISO);

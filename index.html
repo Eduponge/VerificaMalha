@@ -194,7 +194,8 @@
                 }
 
                 const parts = parseDateParts(dateRaw);
-                const depDate = stdDt || etdDt;
+                // Usar ETD como referência de partida sempre que disponível; STD só como fallback
+                const depDate = etdDt || stdDt;
 
                 result.push({
                     id: `${reg}-${dep}-${arr}-${(depDate ? depDate.toISOString() : dateRaw + '-' + std)}-${result.length}`,
@@ -566,7 +567,7 @@
 
         async function fetchWxForBase(icao, lat, lon) {
             if (WX_API_CACHE[icao]) return WX_API_CACHE[icao];
-            const params = 'hourly=visibility,apparent_temperature,precipitation_probability,precipitation,showers,weather_code,cloud_cover,cloud_cover_low,wind_speed_80m,wind_direction_80m&models=gfs_seamless&timezone=GMT&wind_speed_unit=kn&forecast_hours=24&past_hours=24';
+            const params = 'hourly=visibility,apparent_temperature,precipitation_probability,precipitation,showers,weather_code,cloud_cover,cloud_cover_low,wind_speed_80m,wind_direction_80m&models=gfs_seamless&timezone=GMT&wind_speed_unit=kn&forecast_hours=96&past_hours=24';
             const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&${params}`;
             const resp = await fetch(url);
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
