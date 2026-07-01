@@ -55,7 +55,8 @@ Campos vazios funcionam como wildcard (não restritivo).
 
 - Critérios gerais em **AND**.
 - Blocos de hora em **OR** entre as 3 janelas.
-- `Max Delay Time`: compara duração do segmento com limite, usando `ETA-ETD` e fallback `STA-STD`.
+- `Max Arr Delay/Antecipation`: compara `Atraso/Adiantamento de Chegada` (`ETA − STA`) com o limite cadastrado. Valor positivo = máximo de atraso; valor negativo = máximo de antecipação aceitável.
+- `Max Dep Delay/Antecipation`: compara `Atraso/Adiantamento de Partida` (`ETD − STD`) com o limite cadastrado. Valor positivo = máximo de atraso; valor negativo = máximo de antecipação aceitável.
 - `Max Ground Time`: compara tempo de solo estimado entre chegada atual e partida da próxima etapa da mesma matrícula.
 - `Min Crew Composition`: compara com `Crew #` do DayRep (evento quando crew real fica abaixo do mínimo exigido).
 
