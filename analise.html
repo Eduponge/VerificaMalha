@@ -429,12 +429,24 @@
             checks.push(hourCheck.pass);
             if (hourCheck.detail) reasons.push(hourCheck.detail);
 
-            if (restriction.maxDelayTime !== '' && restriction.maxDelayTime != null) {
-                const delay = Number(segment.delayMinutes);
-                const limit = Number(restriction.maxDelayTime);
-                const pass = Number.isFinite(delay) && delay > limit;
+            // Max Arr Delay/Antecipation: compares with segment.arrDelayMinutes (ETA-STA)
+            // Positive limit = max delay; negative limit = max acceptable anticipation
+            const maxArrDelay = restriction.maxArrDelayTime != null ? restriction.maxArrDelayTime : restriction.maxDelayTime;
+            if (maxArrDelay !== '' && maxArrDelay != null) {
+                // Fall back to legacy delayMinutes if arrDelayMinutes not present (old data)
+                const arrDelay = segment.arrDelayMinutes != null ? Number(segment.arrDelayMinutes) : Number(segment.delayMinutes);
+                const limit = Number(maxArrDelay);
+                const pass = Number.isFinite(arrDelay) && (limit >= 0 ? arrDelay > limit : arrDelay < limit);
                 checks.push(pass);
-                reasons.push(`Delay ${Number.isFinite(delay) ? delay : '-'} min > limite ${limit} min`);
+                reasons.push(`Atraso/Adiantamento Chegada ${Number.isFinite(arrDelay) ? arrDelay : '-'} min ${limit >= 0 ? '>' : '<'} limite ${limit} min`);
+            }
+
+            if (restriction.maxDepDelayTime !== '' && restriction.maxDepDelayTime != null) {
+                const depDelay = Number(segment.depDelayMinutes);
+                const limit = Number(restriction.maxDepDelayTime);
+                const pass = Number.isFinite(depDelay) && (limit >= 0 ? depDelay > limit : depDelay < limit);
+                checks.push(pass);
+                reasons.push(`Atraso/Adiantamento Partida ${Number.isFinite(depDelay) ? depDelay : '-'} min ${limit >= 0 ? '>' : '<'} limite ${limit} min`);
             }
 
             if (restriction.maxGroundTime !== '' && restriction.maxGroundTime != null) {

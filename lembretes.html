@@ -28,6 +28,8 @@
         .alert-banner { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 5px; margin-bottom: 8px; font-size: 14px; border-left: 6px solid; }
         .alert-overdue { background-color: #FDEDEC; border-color: #E74C3C; color: #7b241c; }
         .alert-upcoming { background-color: #FEF9E7; border-color: #F39C12; color: #7d6608; }
+        .alert-pre-alert { background-color: #FEF0E0; border-color: #E67E22; color: #7E5109; animation: pre-alert-pulse 1s ease-in-out infinite; }
+        @keyframes pre-alert-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.75; } }
         .alert-dismiss-btn { margin-left: auto; background: transparent; border: 1px solid currentColor; border-radius: 3px; padding: 3px 9px; cursor: pointer; font-size: 12px; color: inherit; }
         .alert-dismiss-btn:hover { opacity: 0.7; }
         /* Event list */
@@ -204,10 +206,54 @@
     <script>
         const STORAGE_KEY = 'lembretesV1';
         const UPCOMING_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
+        const PRE_ALERT_WINDOW_MS = 2 * 60 * 1000; // 2 minutes — pré-alerta
         const REFRESH_INTERVAL_MS = 30000; // refresh every 30 seconds
         const STATUS_ORDER = { overdue: 0, upcoming: 1, future: 2, dismissed: 3 };
         const SAMPLE_REMINDER_IDS = new Set(['rem-example-1', 'rem-example-2', 'rem-example-3']);
         let alertInterval = null;
+
+        // ── Pré-alerta sonoro ──────────────────────────────────────────────────
+        // Controla quais pré-alertas já foram disparados nesta sessão (idempotência)
+        const firedPreAlerts = new Set();
+        let audioContext = null;
+
+        function getAudioContext() {
+            if (!audioContext) {
+                try {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                } catch (e) { /* browser sem suporte */ }
+            }
+            if (audioContext && audioContext.state === 'suspended') {
+                audioContext.resume().catch(() => {});
+            }
+            return audioContext;
+        }
+
+        // Inicializar AudioContext ao primeiro clique do usuário (requisito autoplay)
+        document.addEventListener('click', function initAudio() {
+            getAudioContext();
+            document.removeEventListener('click', initAudio);
+        }, { once: true });
+
+        function playPreAlertBeep() {
+            const ctx = getAudioContext();
+            if (!ctx) return;
+            try {
+                // Dois bipes curtos em sequência (0.35 s de intervalo entre bipes)
+                [0, 0.35].forEach(function(delay) {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(880, ctx.currentTime + delay);
+                    gain.gain.setValueAtTime(0.5, ctx.currentTime + delay);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.3);
+                    osc.start(ctx.currentTime + delay);
+                    osc.stop(ctx.currentTime + delay + 0.3);
+                });
+            } catch (e) { /* falha silenciosa */ }
+        }
 
         function escapeHtml(value) {
             return String(value || '')
@@ -422,6 +468,7 @@
         function renderAlerts() {
             const container = document.getElementById('alertsBanners');
             const events = getEvents();
+            const now = Date.now();
             const alertItems = events.filter((e) => {
                 const s = getStatus(e);
                 return s === 'overdue' || s === 'upcoming';
@@ -434,9 +481,29 @@
 
             container.innerHTML = alertItems.map((e) => {
                 const status = getStatus(e);
-                const cls = status === 'overdue' ? 'alert-overdue' : 'alert-upcoming';
-                const icon = status === 'overdue' ? '🔴' : '🟡';
-                const label = status === 'overdue' ? 'VENCIDO' : 'PRÓXIMO';
+                const eventTime = new Date(e.datetime).getTime();
+                const isPreAlert = !isNaN(eventTime) && status === 'upcoming' && (eventTime - now) <= PRE_ALERT_WINDOW_MS;
+
+                // Disparar som e marcar pré-alerta (apenas uma vez por sessão)
+                if (isPreAlert && !firedPreAlerts.has(e.id)) {
+                    firedPreAlerts.add(e.id);
+                    playPreAlertBeep();
+                }
+
+                let cls, icon, label;
+                if (isPreAlert) {
+                    cls = 'alert-pre-alert';
+                    icon = '🟠';
+                    label = 'PRÉ-ALERTA';
+                } else if (status === 'overdue') {
+                    cls = 'alert-overdue';
+                    icon = '🔴';
+                    label = 'VENCIDO';
+                } else {
+                    cls = 'alert-upcoming';
+                    icon = '🟡';
+                    label = 'PRÓXIMO';
+                }
                 const time = timeUntil(e.datetime);
                 return `
                     <div class="alert-banner ${cls}">

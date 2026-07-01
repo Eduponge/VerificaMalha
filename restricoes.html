@@ -78,7 +78,8 @@
                 <option value="AIP SUP Regulation">AIP SUP Regulation</option>
                 <option value="Procedure">Procedure</option>
                 <option value="Max Ground Time">Max Ground Time</option>
-                <option value="Max Delay Time">Max Delay Time</option>
+                <option value="Max Arr Delay Time">Max Arr Delay Time</option>
+                <option value="Max Dep Delay Time">Max Dep Delay Time</option>
                 <option value="Max Duty Time">Max Duty Time</option>
                 <option value="Outros">Outros</option>
             </select>
@@ -112,10 +113,11 @@
 
         <div class="form-group"><label>Init_Hour3</label><input type="time" id="initHour3"></div>
         <div class="form-group"><label>End_Hour3</label><input type="time" id="endHour3"></div>
-        <div class="form-group"><label>Max Delay Time (min)</label><input type="number" id="maxDelayTime" min="0" placeholder="ex: 180"></div>
+        <div class="form-group"><label>Max Arr Delay/Anticipation (min)</label><input type="number" id="maxArrDelayTime" placeholder="ex: 180 ou -30"></div>
         <div class="form-group"><label>Max Ground Time (min)</label><input type="number" id="maxGroundTime" min="0" placeholder="ex: 240"></div>
 
         <div class="form-group"><label>Max Duty Time (min)</label><input type="number" id="maxDutyTime" min="0" placeholder="ex: 480"></div>
+        <div class="form-group"><label>Max Dep Delay/Anticipation (min)</label><input type="number" id="maxDepDelayTime" placeholder="ex: 60 ou -15"></div>
         <div class="form-group"><label>Min Crew Composition</label><input type="number" id="minCrewComposition" min="0" placeholder="ex: 3"></div>
         <div class="form-group"><label>Expiration Date / validade</label><input type="date" id="expirationDate"></div>
         <div class="form-group" style="grid-column: span 2;"><label>Description / remarks</label><textarea id="description" rows="2" placeholder="Regras, premissas e observações"></textarea></div>
@@ -144,7 +146,8 @@
                     <th>Fleet_Type</th>
                     <th>Matrícula</th>
                     <th>Escopo Frota</th>
-                    <th>Max Delay</th>
+                    <th>Max Arr Delay</th>
+                    <th>Max Dep Delay</th>
                     <th>Max Ground</th>
                     <th>Max Duty</th>
                     <th>Min Crew</th>
@@ -215,7 +218,8 @@
                 fleetType: toUpper(item.fleetType),
                 specificAcft: toUpper(item.specificAcft),
                 fleetScope: normalize(item.fleetScope) || 'All',
-                maxDelayTime: toNumberOrEmpty(item.maxDelayTime),
+                maxArrDelayTime: toNumberOrEmpty(item.maxArrDelayTime != null ? item.maxArrDelayTime : item.maxDelayTime),
+                maxDepDelayTime: toNumberOrEmpty(item.maxDepDelayTime),
                 maxGroundTime: toNumberOrEmpty(item.maxGroundTime),
                 maxDutyTime: toNumberOrEmpty(item.maxDutyTime),
                 minCrewComposition: toNumberOrEmpty(item.minCrewComposition),
@@ -249,7 +253,8 @@
                 fleetType: item.acft || '',
                 specificAcft: '',
                 fleetScope: 'All',
-                maxDelayTime: '',
+                maxArrDelayTime: '',
+                maxDepDelayTime: '',
                 maxGroundTime: '',
                 maxDutyTime: '',
                 minCrewComposition: '',
@@ -269,7 +274,7 @@
             document.getElementById('restrictionType').value = 'Customs';
             [
                 'arptIataArr','arptIataOrig','weekday','day','month','year','initHour1','endHour1','initHour2','endHour2',
-                'initHour3','endHour3','fleetType','specificAcft','maxDelayTime','maxGroundTime','maxDutyTime','minCrewComposition','expirationDate','description'
+                'initHour3','endHour3','fleetType','specificAcft','maxArrDelayTime','maxDepDelayTime','maxGroundTime','maxDutyTime','minCrewComposition','expirationDate','description'
             ].forEach((id) => {
                 document.getElementById(id).value = '';
             });
@@ -296,7 +301,8 @@
                 fleetType: toUpper(document.getElementById('fleetType').value),
                 specificAcft: toUpper(document.getElementById('specificAcft').value),
                 fleetScope: document.querySelector('input[name="fleetScope"]:checked')?.value || 'All',
-                maxDelayTime: toNumberOrEmpty(document.getElementById('maxDelayTime').value),
+                maxArrDelayTime: toNumberOrEmpty(document.getElementById('maxArrDelayTime').value),
+                maxDepDelayTime: toNumberOrEmpty(document.getElementById('maxDepDelayTime').value),
                 maxGroundTime: toNumberOrEmpty(document.getElementById('maxGroundTime').value),
                 maxDutyTime: toNumberOrEmpty(document.getElementById('maxDutyTime').value),
                 minCrewComposition: toNumberOrEmpty(document.getElementById('minCrewComposition').value),
@@ -401,7 +407,8 @@
                     <td>${escapeHtml(item.fleetType || '—')}</td>
                     <td>${escapeHtml(item.specificAcft || '—')}</td>
                     <td>${escapeHtml(item.fleetScope || 'All')}</td>
-                    <td>${item.maxDelayTime === '' ? '—' : item.maxDelayTime}</td>
+                    <td>${item.maxArrDelayTime === '' ? '—' : item.maxArrDelayTime}</td>
+                    <td>${item.maxDepDelayTime === '' ? '—' : item.maxDepDelayTime}</td>
                     <td>${item.maxGroundTime === '' ? '—' : item.maxGroundTime}</td>
                     <td>${item.maxDutyTime === '' ? '—' : item.maxDutyTime}</td>
                     <td>${item.minCrewComposition === '' ? '—' : item.minCrewComposition}</td>
@@ -452,7 +459,9 @@
             const scopeEl = document.getElementById(`fleetScope${scope}`);
             if (scopeEl) scopeEl.checked = true;
             else document.getElementById('fleetScopeAll').checked = true;
-            document.getElementById('maxDelayTime').value = item.maxDelayTime === '' ? '' : item.maxDelayTime;
+            const maxArrFallback = item.maxArrDelayTime != null ? item.maxArrDelayTime : (item.maxDelayTime ?? '');
+            document.getElementById('maxArrDelayTime').value = maxArrFallback;
+            document.getElementById('maxDepDelayTime').value = item.maxDepDelayTime === '' ? '' : item.maxDepDelayTime;
             document.getElementById('maxGroundTime').value = item.maxGroundTime === '' ? '' : item.maxGroundTime;
             document.getElementById('maxDutyTime').value = item.maxDutyTime === '' ? '' : item.maxDutyTime;
             document.getElementById('minCrewComposition').value = item.minCrewComposition === '' ? '' : item.minCrewComposition;

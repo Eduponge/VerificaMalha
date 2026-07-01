@@ -183,15 +183,10 @@
                 const etdDt = /^\d{1,2}:\d{2}$/.test(etdRaw) ? parseDateTime(dateRaw, etdRaw) : null;
                 const etaDt = /^\d{1,2}:\d{2}$/.test(etaRaw) ? adjustEnd(etdDt || stdDt, parseDateTime(dateRaw, etaRaw)) : null;
 
-                let delayMinutes = null;
-                let delayBasis = '';
-                if (etdDt && etaDt) {
-                    delayMinutes = Math.round((etaDt - etdDt) / 60000);
-                    delayBasis = 'ETA-ETD';
-                } else if (stdDt && staDt) {
-                    delayMinutes = Math.round((staDt - stdDt) / 60000);
-                    delayBasis = 'STA-STD';
-                }
+                // Atraso/Adiantamento de Partida: ETD − STD (negativo = adiantamento)
+                const depDelayMinutes = (etdDt && stdDt) ? Math.round((etdDt - stdDt) / 60000) : null;
+                // Atraso/Adiantamento de Chegada: ETA − STA (negativo = adiantamento)
+                const arrDelayMinutes = (etaDt && staDt) ? Math.round((etaDt - staDt) / 60000) : null;
 
                 const parts = parseDateParts(dateRaw);
                 // Usar ETD como referência de partida sempre que disponível; STD só como fallback
@@ -218,8 +213,8 @@
                     eta: etaRaw,
                     depDateTimeISO: depDate ? depDate.toISOString() : '',
                     arrDateTimeISO: (etaDt || staDt) ? (etaDt || staDt).toISOString() : '',
-                    delayMinutes,
-                    delayBasis,
+                    depDelayMinutes,
+                    arrDelayMinutes,
                     crewCount: Number(rowText(row, header.map.crew)) || null,
                     previousSegmentId: null,
                     nextSegmentId: null,
@@ -291,7 +286,7 @@
             regs.forEach((reg) => {
                 const list = grouped[reg].slice().sort((a, b) => new Date(a.depDateTimeISO) - new Date(b.depDateTimeISO));
                 html += `<div class="ac-block"><div class="ac-title">Matrícula: ${escapeHtml(reg)}</div>`;
-                html += '<table><tr><th>Data</th><th>Voo</th><th>Orig</th><th>Dest</th><th>Fleet</th><th>STD</th><th>STA/ETA</th><th>Atraso (min)</th><th>Ground próx. (HH:MM)</th><th>Voo anterior</th><th>Voo sucessor</th><th>Meteo</th></tr>';
+                html += '<table><tr><th>Data</th><th>Voo</th><th>Orig</th><th>Dest</th><th>Fleet</th><th>STD</th><th>STA/ETA</th><th>Atraso Part. (min)</th><th>Atraso Cheg. (min)</th><th>Ground próx. (HH:MM)</th><th>Voo anterior</th><th>Voo sucessor</th><th>Meteo</th></tr>';
                 list.forEach((segment) => {
                     const arrRef = segment.eta || segment.sta || '-';
                     const groundFmt = formatGroundTime(segment.groundTimeToNextMinutes);
@@ -304,7 +299,8 @@
                         <td>${escapeHtml(segment.fleetType || segment.reg || '-')}</td>
                         <td>${escapeHtml(segment.std || '-')}</td>
                         <td>${escapeHtml(arrRef)}</td>
-                        <td>${segment.delayMinutes == null ? '-' : segment.delayMinutes}</td>
+                        <td>${segment.depDelayMinutes == null ? '-' : segment.depDelayMinutes}</td>
+                        <td>${segment.arrDelayMinutes == null ? '-' : segment.arrDelayMinutes}</td>
                         <td>${escapeHtml(groundFmt)}</td>
                         <td>${escapeHtml(segment.previousLabel || '-')}</td>
                         <td>${escapeHtml(segment.nextLabel || '-')}</td>
