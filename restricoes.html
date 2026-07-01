@@ -113,11 +113,11 @@
 
         <div class="form-group"><label>Init_Hour3</label><input type="time" id="initHour3"></div>
         <div class="form-group"><label>End_Hour3</label><input type="time" id="endHour3"></div>
-        <div class="form-group"><label>Max Arr Delay/Antecipation (min)</label><input type="number" id="maxArrDelayTime" placeholder="ex: 180 ou -30"></div>
+        <div class="form-group"><label>Max Arr Delay/Anticipation (min)</label><input type="number" id="maxArrDelayTime" placeholder="ex: 180 ou -30"></div>
         <div class="form-group"><label>Max Ground Time (min)</label><input type="number" id="maxGroundTime" min="0" placeholder="ex: 240"></div>
 
         <div class="form-group"><label>Max Duty Time (min)</label><input type="number" id="maxDutyTime" min="0" placeholder="ex: 480"></div>
-        <div class="form-group"><label>Max Dep Delay/Antecipation (min)</label><input type="number" id="maxDepDelayTime" placeholder="ex: 60 ou -15"></div>
+        <div class="form-group"><label>Max Dep Delay/Anticipation (min)</label><input type="number" id="maxDepDelayTime" placeholder="ex: 60 ou -15"></div>
         <div class="form-group"><label>Min Crew Composition</label><input type="number" id="minCrewComposition" min="0" placeholder="ex: 3"></div>
         <div class="form-group"><label>Expiration Date / validade</label><input type="date" id="expirationDate"></div>
         <div class="form-group" style="grid-column: span 2;"><label>Description / remarks</label><textarea id="description" rows="2" placeholder="Regras, premissas e observações"></textarea></div>
@@ -459,7 +459,8 @@
             const scopeEl = document.getElementById(`fleetScope${scope}`);
             if (scopeEl) scopeEl.checked = true;
             else document.getElementById('fleetScopeAll').checked = true;
-            document.getElementById('maxArrDelayTime').value = item.maxArrDelayTime === '' ? '' : (item.maxArrDelayTime != null ? item.maxArrDelayTime : (item.maxDelayTime === '' ? '' : item.maxDelayTime));
+            const maxArrFallback = item.maxArrDelayTime != null ? item.maxArrDelayTime : (item.maxDelayTime ?? '');
+            document.getElementById('maxArrDelayTime').value = maxArrFallback;
             document.getElementById('maxDepDelayTime').value = item.maxDepDelayTime === '' ? '' : item.maxDepDelayTime;
             document.getElementById('maxGroundTime').value = item.maxGroundTime === '' ? '' : item.maxGroundTime;
             document.getElementById('maxDutyTime').value = item.maxDutyTime === '' ? '' : item.maxDutyTime;
