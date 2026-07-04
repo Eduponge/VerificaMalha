@@ -28,10 +28,15 @@
         .alert-banner { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 5px; margin-bottom: 8px; font-size: 14px; border-left: 6px solid; }
         .alert-overdue { background-color: #FDEDEC; border-color: #E74C3C; color: #7b241c; }
         .alert-upcoming { background-color: #FEF9E7; border-color: #F39C12; color: #7d6608; }
-        .alert-pre-alert { background-color: #FEF0E0; border-color: #E67E22; color: #7E5109; animation: pre-alert-pulse 1s ease-in-out infinite; }
-        @keyframes pre-alert-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.75; } }
-        .alert-dismiss-btn { margin-left: auto; background: transparent; border: 1px solid currentColor; border-radius: 3px; padding: 3px 9px; cursor: pointer; font-size: 12px; color: inherit; }
+        .alert-pre-alert { background-color: #FEF0E0; border-color: #E67E22; color: #7E5109; }
+        .alert-pre-alert-active { background-color: #FEF0E0; border-color: #E67E22; color: #7E5109; animation: pre-alert-flash 0.7s ease-in-out infinite; }
+        @keyframes pre-alert-flash { 0%, 100% { background-color: #FEF0E0; border-color: #E67E22; color: #7E5109; } 50% { background-color: #E74C3C; border-color: #C0392B; color: #fff; } }
+        @media (prefers-reduced-motion: reduce) { .alert-pre-alert-active { animation: pre-alert-flash 2s ease-in-out infinite; } }
+        .alert-btn-group { display: flex; gap: 6px; margin-left: auto; flex-shrink: 0; align-items: center; }
+        .alert-dismiss-btn { background: transparent; border: 1px solid currentColor; border-radius: 3px; padding: 3px 9px; cursor: pointer; font-size: 12px; color: inherit; }
         .alert-dismiss-btn:hover { opacity: 0.7; }
+        .alert-stop-btn { background: #C0392B; color: #fff; border: none; border-radius: 3px; padding: 3px 9px; cursor: pointer; font-size: 12px; font-weight: bold; }
+        .alert-stop-btn:hover { background: #96281B; }
         /* Event list */
         .list-section { background: #fff; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow: hidden; }
         .list-header { background: #8E44AD; color: white; padding: 10px 16px; font-weight: bold; font-size: 14px; display: flex; align-items: center; justify-content: space-between; }
@@ -215,7 +220,10 @@
         // ── Pré-alerta sonoro ──────────────────────────────────────────────────
         // Controla quais pré-alertas já foram disparados nesta sessão (idempotência)
         const firedPreAlerts = new Set();
+        const stoppedPreAlerts = new Set(); // IDs cujo alerta o utilizador parou manualmente
         let audioContext = null;
+        let ringtonePlaying = false;
+        let ringtoneStopFn = null;
 
         function getAudioContext() {
             if (!audioContext) {
@@ -235,24 +243,56 @@
             document.removeEventListener('click', initAudio);
         }, { once: true });
 
-        function playPreAlertBeep() {
+        // Toque de telefone em loop (3 tons curtos, pausa de 2 s, repete)
+        function startRingtone() {
+            if (ringtonePlaying) return;
             const ctx = getAudioContext();
             if (!ctx) return;
-            try {
-                // Dois bipes curtos em sequência (0.35 s de intervalo entre bipes)
-                [0, 0.35].forEach(function(delay) {
-                    const osc = ctx.createOscillator();
-                    const gain = ctx.createGain();
-                    osc.connect(gain);
-                    gain.connect(ctx.destination);
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(880, ctx.currentTime + delay);
-                    gain.gain.setValueAtTime(0.5, ctx.currentTime + delay);
-                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.3);
-                    osc.start(ctx.currentTime + delay);
-                    osc.stop(ctx.currentTime + delay + 0.3);
-                });
-            } catch (e) { /* falha silenciosa */ }
+            ringtonePlaying = true;
+            let stopped = false;
+            let timeoutId = null;
+            function playRing() {
+                if (stopped) return;
+                try {
+                    [0, 0.18, 0.36].forEach(function(delay) {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.connect(gain);
+                        gain.connect(ctx.destination);
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(1050, ctx.currentTime + delay);
+                        gain.gain.setValueAtTime(0.6, ctx.currentTime + delay);
+                        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.14);
+                        osc.start(ctx.currentTime + delay);
+                        osc.stop(ctx.currentTime + delay + 0.14);
+                    });
+                } catch (e) { /* falha silenciosa */ }
+                timeoutId = setTimeout(playRing, 2000);
+            }
+            playRing();
+            ringtoneStopFn = function() {
+                stopped = true;
+                clearTimeout(timeoutId);
+                ringtonePlaying = false;
+                ringtoneStopFn = null;
+            };
+        }
+
+        function stopPreAlert(id) {
+            stoppedPreAlerts.add(id);
+            if (ringtoneStopFn) ringtoneStopFn();
+            // Se existirem outros pré-alertas ainda activos, retoma o toque
+            const evts = getEvents();
+            const nowMs = Date.now();
+            const hasOtherActive = evts.some(function(e) {
+                if (stoppedPreAlerts.has(e.id) || e.dismissed) return false;
+                const s = getStatus(e);
+                if (s !== 'upcoming') return false;
+                const t = new Date(e.datetime).getTime();
+                return !isNaN(t) && (t - nowMs) <= PRE_ALERT_WINDOW_MS;
+            });
+            if (hasOtherActive) startRingtone();
+            renderAlerts();
         }
 
         function escapeHtml(value) {
@@ -483,15 +523,20 @@
                 const status = getStatus(e);
                 const eventTime = new Date(e.datetime).getTime();
                 const isPreAlert = !isNaN(eventTime) && status === 'upcoming' && (eventTime - now) <= PRE_ALERT_WINDOW_MS;
+                const isActivePreAlert = isPreAlert && !stoppedPreAlerts.has(e.id);
 
                 // Disparar som e marcar pré-alerta (apenas uma vez por sessão)
                 if (isPreAlert && !firedPreAlerts.has(e.id)) {
                     firedPreAlerts.add(e.id);
-                    playPreAlertBeep();
+                    startRingtone();
                 }
 
                 let cls, icon, label;
-                if (isPreAlert) {
+                if (isActivePreAlert) {
+                    cls = 'alert-pre-alert-active';
+                    icon = '🟠';
+                    label = 'PRÉ-ALERTA';
+                } else if (isPreAlert) {
                     cls = 'alert-pre-alert';
                     icon = '🟠';
                     label = 'PRÉ-ALERTA';
@@ -512,7 +557,10 @@
                             ${time ? `&nbsp;(${escapeHtml(time)})` : ''}
                             ${e.note ? `<br><small>📝 ${escapeHtml(e.note)}</small>` : ''}
                         </span>
-                        <button class="alert-dismiss-btn" onclick="dismissFromBanner('${escapeHtml(e.id)}')">Dispensar</button>
+                        <div class="alert-btn-group">
+                            ${isActivePreAlert ? `<button class="alert-stop-btn" onclick="stopPreAlert('${escapeHtml(e.id)}')">🔕 Parar alerta</button>` : ''}
+                            <button class="alert-dismiss-btn" onclick="dismissFromBanner('${escapeHtml(e.id)}')">Dispensar</button>
+                        </div>
                     </div>
                 `;
             }).join('');
