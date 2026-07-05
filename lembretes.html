@@ -87,6 +87,13 @@
         /* Flight fields in event cards */
         .flight-tags { margin-top: 4px; }
         .flight-tag { display: inline-block; font-size: 11px; background: #f0e6ff; color: #6C3483; padding: 1px 7px; border-radius: 8px; margin-right: 4px; }
+        /* Collapsible form section */
+        .collapsible-header { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+        .collapsible-header h3 { margin: 0; }
+        .collapsible-toggle { background: none; border: 1px solid #8E44AD; color: #8E44AD; border-radius: 3px; padding: 3px 10px; font-size: 12px; cursor: pointer; font-weight: bold; }
+        .collapsible-toggle:hover { background: #f0e6ff; }
+        .collapsible-body { overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease; max-height: 1000px; opacity: 1; }
+        .collapsible-body.collapsed { max-height: 0; opacity: 0; }
     </style>
 </head>
 <body>
@@ -106,22 +113,13 @@
     <!-- Alert banners area -->
     <div class="alerts-section" id="alertsBanners"></div>
 
-    <!-- TXT Import -->
-    <div class="pdf-section">
-        <h3>📄 Importar DayList (TXT)</h3>
-        <div class="hint" style="margin-bottom:12px;" id="daylistHint">Faça upload do DayList em formato TXT para criar automaticamente os lembretes de <strong>Flight Check</strong> (ETD −3h) e <strong>Crew Wake Up</strong> (ETD −2h).</div>
-        <div class="upload-area">
-            <label class="custom-upload-label" for="daylistFile">📁 Escolher DayList TXT</label>
-            <input type="file" id="daylistFile" accept=".txt" onchange="onDayListFileSelected()">
-            <div class="pdf-file-name" id="daylistFileName">Nenhum arquivo selecionado</div>
-        </div>
-        <button class="btn-primary" onclick="importDayList()">⬇️ Importar lembretes do DayList</button>
-        <div id="pdfStatus"></div>
-    </div>
-
-    <!-- Form -->
+    <!-- Form (collapsible) -->
     <div class="form-section">
-        <h3>Cadastrar / Editar Lembrete</h3>
+        <div class="collapsible-header" onclick="toggleFormSection()">
+            <h3>Cadastrar / Editar Lembrete</h3>
+            <button class="collapsible-toggle" id="formToggleBtn" onclick="event.stopPropagation(); toggleFormSection()">▲ Recolher</button>
+        </div>
+        <div class="collapsible-body" id="formBody">
         <div class="form-grid">
             <input type="hidden" id="editingId" value="">
 
@@ -174,6 +172,7 @@
                 <button class="btn-secondary" onclick="clearForm()">✖ Limpar formulário</button>
             </div>
         </div>
+        </div><!-- end collapsible-body -->
     </div>
 
     <!-- Event list -->
@@ -206,6 +205,19 @@
             <input type="date" id="filterDateTo" onchange="renderList()">
         </div>
         <div id="eventList"></div>
+    </div>
+
+    <!-- TXT Import (moved to end of page) -->
+    <div class="pdf-section" style="margin-top:20px;">
+        <h3>📄 Importar DayList (TXT)</h3>
+        <div class="hint" style="margin-bottom:12px;" id="daylistHint">Faça upload do DayList em formato TXT para criar automaticamente os lembretes de <strong>Flight Check</strong> (ETD −3h) e <strong>Crew Wake Up</strong> (ETD −2h).</div>
+        <div class="upload-area">
+            <label class="custom-upload-label" for="daylistFile">📁 Escolher DayList TXT</label>
+            <input type="file" id="daylistFile" accept=".txt" onchange="onDayListFileSelected()">
+            <div class="pdf-file-name" id="daylistFileName">Nenhum arquivo selecionado</div>
+        </div>
+        <button class="btn-primary" onclick="importDayList()">⬇️ Importar lembretes do DayList</button>
+        <div id="pdfStatus"></div>
     </div>
 
     <script>
@@ -426,6 +438,27 @@
             document.getElementById('eventEtd').value = '';
         }
 
+        function expandFormSection() {
+            const body = document.getElementById('formBody');
+            const btn = document.getElementById('formToggleBtn');
+            if (body.classList.contains('collapsed')) {
+                body.classList.remove('collapsed');
+                btn.textContent = '▲ Recolher';
+            }
+        }
+
+        function toggleFormSection() {
+            const body = document.getElementById('formBody');
+            const btn = document.getElementById('formToggleBtn');
+            if (body.classList.contains('collapsed')) {
+                body.classList.remove('collapsed');
+                btn.textContent = '▲ Recolher';
+            } else {
+                body.classList.add('collapsed');
+                btn.textContent = '▼ Expandir';
+            }
+        }
+
         function readForm() {
             const id = document.getElementById('editingId').value || `rem-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
             return {
@@ -474,6 +507,7 @@
             document.getElementById('eventDestination').value = item.destination || '';
             document.getElementById('eventStd').value = item.std || '';
             document.getElementById('eventEtd').value = item.etd || '';
+            expandFormSection();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
