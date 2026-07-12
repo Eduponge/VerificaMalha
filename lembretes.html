@@ -204,7 +204,7 @@
             <input type="date" id="filterDateFrom" onchange="renderList()">
             <label class="filter-spacer" for="filterDateTo">Até:</label>
             <input type="date" id="filterDateTo" onchange="renderList()">
-            <button class="delete-btn filter-action-btn" onclick="deleteAllOverdueEvents()">Excluir vencidos</button>
+            <button class="delete-btn filter-action-btn" id="deleteAllOverdueBtn" aria-label="Excluir todos os alertas vencidos">Excluir vencidos</button>
         </div>
         <div id="eventList"></div>
     </div>
@@ -537,7 +537,8 @@
             if (!confirm(`Deseja realmente excluir ${overdueIds.size} alerta(s) vencido(s)?`)) return;
 
             setEvents(list.filter((e) => !overdueIds.has(e.id)));
-            if (overdueIds.has(document.getElementById('editingId').value)) clearForm();
+            const editingId = document.getElementById('editingId').value;
+            if (editingId && overdueIds.has(editingId)) clearForm();
             renderList();
             renderAlerts();
         }
@@ -728,6 +729,8 @@
         }
 
         window.onload = function() {
+            const deleteAllOverdueBtn = document.getElementById('deleteAllOverdueBtn');
+            if (deleteAllOverdueBtn) deleteAllOverdueBtn.addEventListener('click', deleteAllOverdueEvents);
             purgeSampleEvents();
             tick();
             alertInterval = setInterval(tick, REFRESH_INTERVAL_MS);
@@ -805,7 +808,9 @@
 
             // Extract document date immediately after the "Ops Control Day List" heading
             const dateMatch = normalizedText.match(/Ops Control Day List\s*(\d{2})\/(\d{2})\/(\d{4})/i);
-            if (!dateMatch) return flights;
+            if (!dateMatch) {
+                throw new Error('Não foi encontrada a data do DayList após "Ops Control Day List".');
+            }
             const docDay   = parseInt(dateMatch[1], 10);
             const docMonth = parseInt(dateMatch[2], 10);
             const docYear  = parseInt(dateMatch[3], 10);
