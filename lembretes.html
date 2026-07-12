@@ -203,6 +203,7 @@
             <input type="date" id="filterDateFrom" onchange="renderList()">
             <label class="filter-spacer" for="filterDateTo">Até:</label>
             <input type="date" id="filterDateTo" onchange="renderList()">
+            <button class="delete-btn" style="margin-left:auto;" onclick="deleteAllOverdueEvents()">Excluir vencidos</button>
         </div>
         <div id="eventList"></div>
     </div>
@@ -519,6 +520,27 @@
             if (document.getElementById('editingId').value === id) clearForm();
         }
 
+        function deleteAllOverdueEvents() {
+            const list = getEvents();
+            const overdueIds = new Set(
+                list
+                    .filter((e) => getStatus(e) === 'overdue')
+                    .map((e) => e.id)
+            );
+
+            if (!overdueIds.size) {
+                alert('Não há alertas vencidos para excluir.');
+                return;
+            }
+
+            if (!confirm(`Deseja realmente excluir ${overdueIds.size} alerta(s) vencido(s)?`)) return;
+
+            setEvents(list.filter((e) => !overdueIds.has(e.id)));
+            if (overdueIds.has(document.getElementById('editingId').value)) clearForm();
+            renderList();
+            renderAlerts();
+        }
+
         function toggleDismiss(id) {
             const list = getEvents();
             const item = list.find((e) => e.id === id);
@@ -718,11 +740,6 @@
         // Default departure airport used when the DayList doesn't specify origin
         const DEFAULT_ORIGIN = 'LUX';
 
-        // Overnight detection thresholds: if STD ≥ this hour and ETD < this hour,
-        // the ETD is treated as belonging to the following calendar day
-        const OVERNIGHT_STD_THRESHOLD_HOUR = 18;
-        const OVERNIGHT_ETD_THRESHOLD_HOUR = 12;
-
         // Populate the hint text dynamically from EARLY_WAKEUP_REGS so it stays in sync
         (function setDaylistHint() {
             const el = document.getElementById('daylistHint');
@@ -778,21 +795,21 @@
          *   Line 2: CVNNNN ADES HH:MM ← flight number, destination (ADES), STD
          *   Line 3: HH.MM …           ← ETD in dot-separated format
          *
-         * The document date (dd/mm/yyyy) appears just after the "Day List" heading.
+         * The document date (dd/mm/yyyy) appears just after the "Ops Control Day List" heading.
          * All flights depart from LUX.
          */
         function parseDayListText(rawText) {
             const flights = [];
+            const normalizedText = rawText.replace(/\r\n?/g, '\n');
 
-            // Extract document date (dd/mm/yyyy)
-            const dateMatch = rawText.match(/\b(\d{2})\/(\d{2})\/(\d{4})\b/);
+            // Extract document date immediately after the "Ops Control Day List" heading
+            const dateMatch = normalizedText.match(/Ops Control Day List\s+(\d{2})\/(\d{2})\/(\d{4})/i);
             if (!dateMatch) return flights;
             const docDay   = parseInt(dateMatch[1], 10);
             const docMonth = parseInt(dateMatch[2], 10);
             const docYear  = parseInt(dateMatch[3], 10);
 
-            const lines = rawText
-                .replace(/\r\n?/g, '\n')
+            const lines = normalizedText
                 .split('\n')
                 .map((l) => l.trim())
                 .filter(Boolean);
@@ -879,25 +896,8 @@
 
                 const etdH = parseInt(etdParts[1], 10);
                 const etdM = parseInt(etdParts[2], 10);
-                const etdTotalMin = etdH * 60 + etdM;
-
-                // Detect overnight: if STD ≥ threshold and ETD < threshold → ETD is next day
-                let etdDay = f.day, etdMonth = f.month, etdYear = f.year;
-                if (f.std) {
-                    const stdParts = f.std.match(/^(\d{1,2}):(\d{2})$/);
-                    if (stdParts) {
-                        const stdTotalMin = parseInt(stdParts[1], 10) * 60 + parseInt(stdParts[2], 10);
-                        if (stdTotalMin >= OVERNIGHT_STD_THRESHOLD_HOUR * 60 && etdTotalMin < OVERNIGHT_ETD_THRESHOLD_HOUR * 60) {
-                            const d = new Date(Date.UTC(etdYear, etdMonth - 1, etdDay));
-                            d.setUTCDate(d.getUTCDate() + 1);
-                            etdDay   = d.getUTCDate();
-                            etdMonth = d.getUTCMonth() + 1;
-                            etdYear  = d.getUTCFullYear();
-                        }
-                    }
-                }
-
-                const etdDate = new Date(Date.UTC(etdYear, etdMonth - 1, etdDay, etdH, etdM));
+                const dateKey = `${f.year}-${String(f.month).padStart(2, '0')}-${String(f.day).padStart(2, '0')}`;
+                const etdDate = new Date(Date.UTC(f.year, f.month - 1, f.day, etdH, etdM));
                 const note = [
                     f.flt  ? `Voo: ${f.flt}`      : '',
                     f.ades ? `Destino: ${f.ades}`  : '',
@@ -906,7 +906,7 @@
                 ].filter(Boolean).join(' | ');
 
                 // ── Flight Check: ETD − 3h ───────────────────────────────────
-                const fcId = `rem-fc-${f.reg}-${f.etd}-${etdDay}${etdMonth}${etdYear}`;
+                const fcId = `rem-fc-${f.reg}-${f.etd}-${dateKey}`;
                 if (!list.find((e) => e.id === fcId)) {
                     const fcTime = new Date(etdDate.getTime() - 3 * 60 * 60 * 1000);
                     list.push({
@@ -928,7 +928,7 @@
                 // ── Crew Wake Up: ETD − 2h (or − 2h15m for special regs) ────
                 const isEarly = EARLY_WAKEUP_REGS.has(f.reg);
                 const wakeupMs = isEarly ? (2 * 60 + 15) * 60 * 1000 : 2 * 60 * 60 * 1000;
-                const wuId = `rem-wu-${f.reg}-${f.etd}-${etdDay}${etdMonth}${etdYear}`;
+                const wuId = `rem-wu-${f.reg}-${f.etd}-${dateKey}`;
                 if (!list.find((e) => e.id === wuId)) {
                     const wuTime = new Date(etdDate.getTime() - wakeupMs);
                     list.push({
