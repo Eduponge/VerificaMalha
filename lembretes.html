@@ -809,7 +809,7 @@
             // Extract document date immediately after the "Ops Control Day List" heading
             const dateMatch = normalizedText.match(/Ops Control Day List\s*(\d{2})\/(\d{2})\/(\d{4})/i);
             if (!dateMatch) {
-                throw new Error('Não foi encontrada a data do DayList após "Ops Control Day List".');
+                throw new Error('Não foi encontrada a data do DayList após "Ops Control Day List". Formato esperado: Ops Control Day List DD/MM/YYYY.');
             }
             const docDay   = parseInt(dateMatch[1], 10);
             const docMonth = parseInt(dateMatch[2], 10);
