@@ -72,6 +72,7 @@
         .filter-row label { font-size: 12px; margin-bottom: 0; font-weight: bold; color: #6C3483; }
         .filter-row select, .filter-row input[type="date"] { font-size: 12px; padding: 4px; }
         .filter-spacer { margin-left: 16px; }
+        .filter-action-btn { margin-left: auto; }
         /* TXT import section */
         .pdf-section { background: #fff; padding: 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
         .pdf-section h3 { color: #6C3483; margin-top: 0; }
@@ -203,7 +204,7 @@
             <input type="date" id="filterDateFrom" onchange="renderList()">
             <label class="filter-spacer" for="filterDateTo">Até:</label>
             <input type="date" id="filterDateTo" onchange="renderList()">
-            <button class="delete-btn" style="margin-left:auto;" onclick="deleteAllOverdueEvents()">Excluir vencidos</button>
+            <button class="delete-btn filter-action-btn" onclick="deleteAllOverdueEvents()">Excluir vencidos</button>
         </div>
         <div id="eventList"></div>
     </div>
@@ -803,7 +804,7 @@
             const normalizedText = rawText.replace(/\r\n?/g, '\n');
 
             // Extract document date immediately after the "Ops Control Day List" heading
-            const dateMatch = normalizedText.match(/Ops Control Day List\s+(\d{2})\/(\d{2})\/(\d{4})/i);
+            const dateMatch = normalizedText.match(/Ops Control Day List\s*(\d{2})\/(\d{2})\/(\d{4})/i);
             if (!dateMatch) return flights;
             const docDay   = parseInt(dateMatch[1], 10);
             const docMonth = parseInt(dateMatch[2], 10);
