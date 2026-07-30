@@ -8,7 +8,7 @@ Aplicação local (HTML/JS/CSS) para:
 
 ## Arquivos principais
 
-- `index.html`: upload do DayRep, parsing e timeline por matrícula.
+- `index.html`: upload do DayRep, parsing, filtro por data, mapa das etapas e timeline por matrícula.
 - `restricoes.html`: cadastro/edição/exclusão de restrições.
 - `analise.html`: cruzamento DayRep x restrições e lista de eventos.
 
@@ -27,6 +27,7 @@ A aplicação usa `localStorage`:
 - `currentDayRepMeta`: metadados do último DayRep carregado.
 - `restrictionsV2`: restrições cadastradas.
 - `lastAnalysis`: última análise gerada.
+- `wxConfig`: configuração meteorológica, incluindo coordenadas das bases usadas no mapa e na consulta meteo.
 
 Ao carregar um novo DayRep em `index.html`, a chave `lastAnalysis` é removida para forçar nova análise.
 
@@ -69,5 +70,12 @@ Parser implementado com heurística resiliente para DayRep HTML:
 3. Aceita datas `dd/mm/yy` ou `dd/mm/yyyy` e horários `HH:MM`.
 4. Ajusta cruzamento de meia-noite quando horário de chegada é menor que partida.
 5. Ignora linhas sem dados mínimos de voo.
+
+## Visualização gráfica em `index.html`
+
+- Filtro por data com base nas datas encontradas no DayRep carregado.
+- Mapa 2D com projeção simples latitude/longitude usando as coordenadas cadastradas em `meteo.html`.
+- Linhas ligando origem e destino das etapas filtradas.
+- Destaque para bases sem coordenadas cadastradas, impedindo a plotagem da rota correspondente.
 
 Essas heurísticas foram validadas com o `DayRep.html` presente no repositório.

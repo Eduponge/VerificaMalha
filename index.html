@@ -41,6 +41,68 @@
         .small { font-size: 12px; color: #666; }
         .error { color: #c0392b; font-weight: bold; }
         .wx-btn { background: none; border: none; font-size: 16px; padding: 2px; cursor: pointer; }
+        .controls-panel, .map-panel {
+            margin-bottom: 20px;
+            background: #fff;
+            padding: 16px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .filter-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+        .filter-row label { font-weight: bold; color: #2c3e50; }
+        .filter-row select, .filter-row button {
+            padding: 8px 10px;
+            border-radius: 3px;
+            border: 1px solid #ccc;
+            font-family: Calibri, sans-serif;
+            font-size: 14px;
+        }
+        .filter-row button {
+            background: #7f8c8d;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .filter-row button:hover { background: #5d6d6f; }
+        .filter-summary { margin-top: 8px; font-size: 13px; color: #444; }
+        .map-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+        .map-header h3 { margin: 0; color: #2c3e50; }
+        .map-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: #444; }
+        .legend-item { display: inline-flex; align-items: center; gap: 6px; }
+        .legend-line, .legend-dot {
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .legend-line { width: 24px; height: 0; border-top: 3px solid #3498DB; }
+        .legend-dot { width: 10px; height: 10px; border-radius: 50%; background: #E74C3C; }
+        .map-svg-wrap {
+            width: 100%;
+            overflow-x: auto;
+            border: 1px solid #d6eaf8;
+            border-radius: 4px;
+            background: #eef7fd;
+        }
+        .map-svg-wrap svg { display: block; width: 100%; height: auto; min-width: 960px; }
+        .missing-bases {
+            margin-top: 12px;
+            padding: 10px 12px;
+            background: #fef5e7;
+            border-left: 4px solid #f39c12;
+            border-radius: 3px;
+            font-size: 13px;
+            color: #7d6608;
+        }
+        .missing-bases strong { color: #935116; }
+        .missing-bases-list { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+        .base-pill {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 10px;
+            background: #fdebd0;
+            border: 1px solid #f5cba7;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
@@ -67,6 +129,34 @@
             <br>
             <button style="background-color: #27AE60; color: white; border: none; padding: 10px 20px; cursor: pointer; font-weight: bold; border-radius: 3px;" onclick="processarDayRepFile()">Gerar timeline</button>
             <div class="small">Ao carregar novo DayRep, a última análise salva é invalidada automaticamente.</div>
+        </div>
+
+        <div class="controls-panel" id="timelineControls" style="display:none;">
+            <div class="filter-row">
+                <label for="dateFilter">Filtrar voos por data:</label>
+                <select id="dateFilter" onchange="handleDateFilterChange()"></select>
+                <button type="button" onclick="clearDateFilter()">Limpar filtro</button>
+            </div>
+            <div class="filter-summary" id="filterSummary"></div>
+        </div>
+
+        <div class="map-panel" id="mapPanel" style="display:none;">
+            <div class="map-header">
+                <div>
+                    <h3>🌍 Mapa das Etapas</h3>
+                    <div class="small">Plano cartesiano com projeção simples latitude/longitude (90°N/90°S e 180°W/180°E).</div>
+                </div>
+                <div class="map-legend">
+                    <span class="legend-item"><span class="legend-line"></span> Etapa de voo</span>
+                    <span class="legend-item"><span class="legend-dot"></span> Base com coordenadas</span>
+                </div>
+            </div>
+            <div class="small" id="mapSummary"></div>
+            <div class="map-svg-wrap" id="mapSvgWrap"></div>
+            <div class="missing-bases" id="missingBasesBox" style="display:none;">
+                <strong>Bases sem coordenadas em meteo.html:</strong>
+                <div class="missing-bases-list" id="missingBasesList"></div>
+            </div>
         </div>
 
         <div class="timeline-container" id="timelineOutput"></div>
@@ -264,10 +354,212 @@
             return `${mins < 0 ? '-' : ''}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} (${mins} min)`;
         }
 
+        const WORLD_LANDMASSES = [
+            [[-167,72],[-145,70],[-130,55],[-125,48],[-117,33],[-106,25],[-98,18],[-90,19],[-84,25],[-80,31],[-76,39],[-68,45],[-60,52],[-60,60],[-75,73],[-110,74]],
+            [[-82,12],[-76,8],[-73,-3],[-70,-12],[-65,-20],[-61,-32],[-58,-42],[-62,-52],[-73,-55],[-79,-44],[-81,-27],[-78,-10]],
+            [[-52,80],[-38,76],[-28,70],[-34,61],[-48,60],[-58,67]],
+            [[-10,36],[0,44],[10,50],[22,58],[40,60],[58,58],[72,55],[88,55],[105,50],[118,42],[130,35],[138,25],[135,12],[118,8],[108,2],[92,8],[78,20],[64,24],[55,30],[40,35],[30,45],[16,46],[8,43],[2,38]],
+            [[-18,34],[-6,36],[10,34],[20,27],[28,15],[33,4],[35,-10],[30,-22],[24,-30],[18,-35],[8,-34],[0,-28],[-8,-10],[-14,5],[-16,20]],
+            [[110,-10],[118,-18],[130,-20],[140,-25],[151,-34],[146,-41],[132,-39],[120,-34],[113,-26]],
+            [[47,-13],[50,-16],[48,-22],[44,-25],[42,-19]]
+        ];
+
+        let _allSegments = [];
+        let _currentFileName = 'DayRep';
+        let _selectedDateISO = '';
+
+        function formatDateLabel(dateISO) {
+            if (!dateISO) return 'Todas as datas';
+            const [year, month, day] = dateISO.split('-');
+            return `${day}/${month}/${year}`;
+        }
+
+        function getDateOptions(segments) {
+            return [...new Set(segments.map((segment) => segment.dateISO).filter(Boolean))].sort();
+        }
+
+        function updateDateFilterControls() {
+            const controls = document.getElementById('timelineControls');
+            const select = document.getElementById('dateFilter');
+            const summary = document.getElementById('filterSummary');
+            if (!_allSegments.length) {
+                controls.style.display = 'none';
+                select.innerHTML = '';
+                summary.textContent = '';
+                return;
+            }
+
+            const dates = getDateOptions(_allSegments);
+            if (_selectedDateISO && !dates.includes(_selectedDateISO)) {
+                _selectedDateISO = '';
+            }
+
+            select.innerHTML = ['<option value="">Todas as datas</option>']
+                .concat(dates.map((dateISO) => `<option value="${escapeHtml(dateISO)}">${escapeHtml(formatDateLabel(dateISO))}</option>`))
+                .join('');
+            select.value = _selectedDateISO;
+            controls.style.display = 'block';
+            summary.textContent = _selectedDateISO
+                ? `Filtro ativo: ${formatDateLabel(_selectedDateISO)}.`
+                : `Sem filtro ativo. Datas encontradas: ${dates.map(formatDateLabel).join(', ') || '—'}.`;
+        }
+
+        function getFilteredSegments() {
+            return _selectedDateISO
+                ? _allSegments.filter((segment) => segment.dateISO === _selectedDateISO)
+                : _allSegments.slice();
+        }
+
+        function handleDateFilterChange() {
+            _selectedDateISO = document.getElementById('dateFilter').value || '';
+            renderCurrentView();
+        }
+
+        function clearDateFilter() {
+            _selectedDateISO = '';
+            renderCurrentView();
+        }
+
+        function projectLonLat(lon, lat, width, height) {
+            return {
+                x: ((lon + 180) / 360) * width,
+                y: ((90 - lat) / 180) * height
+            };
+        }
+
+        function buildWrappedRouteSegments(origCoord, destCoord) {
+            const diff = destCoord.lon - origCoord.lon;
+            if (Math.abs(diff) <= 180) {
+                return [[origCoord, destCoord]];
+            }
+
+            const adjustedDestLon = diff > 180 ? destCoord.lon - 360 : destCoord.lon + 360;
+            const boundary = diff > 180 ? -180 : 180;
+            const t = (boundary - origCoord.lon) / (adjustedDestLon - origCoord.lon);
+            const crossLat = origCoord.lat + (destCoord.lat - origCoord.lat) * t;
+
+            return [
+                [origCoord, { lat: crossLat, lon: boundary }],
+                [{ lat: crossLat, lon: -boundary }, destCoord]
+            ];
+        }
+
+        function renderRouteMap(segments) {
+            const panel = document.getElementById('mapPanel');
+            const mapWrap = document.getElementById('mapSvgWrap');
+            const mapSummary = document.getElementById('mapSummary');
+            const missingBox = document.getElementById('missingBasesBox');
+            const missingList = document.getElementById('missingBasesList');
+
+            if (!_allSegments.length) {
+                panel.style.display = 'none';
+                mapWrap.innerHTML = '';
+                mapSummary.textContent = '';
+                missingBox.style.display = 'none';
+                missingList.innerHTML = '';
+                return;
+            }
+
+            panel.style.display = 'block';
+
+            const cfg = getWxConfig();
+            const bases = cfg.bases || {};
+            const width = 1200;
+            const height = 540;
+            const missingBases = new Set();
+            const plottedBases = new Map();
+            const routeLines = [];
+
+            segments.forEach((segment) => {
+                const origCoord = bases[segment.orig];
+                const destCoord = bases[segment.dest];
+                if (!origCoord) missingBases.add(segment.orig);
+                if (!destCoord) missingBases.add(segment.dest);
+                if (!origCoord || !destCoord) return;
+
+                plottedBases.set(segment.orig, origCoord);
+                plottedBases.set(segment.dest, destCoord);
+                buildWrappedRouteSegments(origCoord, destCoord).forEach(([start, end]) => {
+                    const startPoint = projectLonLat(start.lon, start.lat, width, height);
+                    const endPoint = projectLonLat(end.lon, end.lat, width, height);
+                    routeLines.push(`<line x1="${startPoint.x.toFixed(2)}" y1="${startPoint.y.toFixed(2)}" x2="${endPoint.x.toFixed(2)}" y2="${endPoint.y.toFixed(2)}" stroke="#3498DB" stroke-width="2.4" stroke-linecap="round" opacity="0.75" />`);
+                });
+            });
+
+            const gridLines = [];
+            for (let lon = -180; lon <= 180; lon += 60) {
+                const point = projectLonLat(lon, 0, width, height);
+                gridLines.push(`<line x1="${point.x.toFixed(2)}" y1="0" x2="${point.x.toFixed(2)}" y2="${height}" stroke="#bcd9ea" stroke-width="${lon === 0 ? 1.5 : 1}" opacity="${lon === 0 ? 0.9 : 0.7}" />`);
+                if (lon < 180) {
+                    gridLines.push(`<text x="${(point.x + 4).toFixed(2)}" y="${height - 8}" fill="#5d6d7e" font-size="11">${lon}°</text>`);
+                }
+            }
+            for (let lat = -60; lat <= 60; lat += 30) {
+                const point = projectLonLat(0, lat, width, height);
+                gridLines.push(`<line x1="0" y1="${point.y.toFixed(2)}" x2="${width}" y2="${point.y.toFixed(2)}" stroke="#bcd9ea" stroke-width="${lat === 0 ? 1.5 : 1}" opacity="${lat === 0 ? 0.9 : 0.7}" />`);
+                gridLines.push(`<text x="6" y="${(point.y - 4).toFixed(2)}" fill="#5d6d7e" font-size="11">${lat}°</text>`);
+            }
+
+            const land = WORLD_LANDMASSES.map((polygon) => {
+                const points = polygon
+                    .map(([lon, lat]) => {
+                        const point = projectLonLat(lon, lat, width, height);
+                        return `${point.x.toFixed(2)},${point.y.toFixed(2)}`;
+                    })
+                    .join(' ');
+                return `<polygon points="${points}" fill="#d4e6c3" stroke="#9db68d" stroke-width="1.1" opacity="0.95"></polygon>`;
+            }).join('');
+
+            const basePoints = [...plottedBases.entries()].map(([code, coord]) => {
+                const point = projectLonLat(coord.lon, coord.lat, width, height);
+                const labelX = Math.min(width - 38, point.x + 7);
+                const labelY = Math.max(12, point.y - 7);
+                return `
+                    <circle cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="4.5" fill="#E74C3C" stroke="#ffffff" stroke-width="1.5"></circle>
+                    <text x="${labelX.toFixed(2)}" y="${labelY.toFixed(2)}" fill="#1f2d3d" font-size="11" font-weight="bold">${escapeHtml(code)}</text>
+                `;
+            }).join('');
+
+            mapWrap.innerHTML = `
+                <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Mapa das etapas de voo">
+                    <rect x="0" y="0" width="${width}" height="${height}" fill="#eef7fd"></rect>
+                    ${gridLines.join('')}
+                    ${land}
+                    ${routeLines.join('')}
+                    ${basePoints}
+                    <rect x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" fill="none" stroke="#7fb3d5" stroke-width="1"></rect>
+                    <text x="10" y="18" fill="#2c3e50" font-size="12" font-weight="bold">90°N</text>
+                    <text x="10" y="${height - 10}" fill="#2c3e50" font-size="12" font-weight="bold">90°S</text>
+                    <text x="10" y="${(height / 2 + 16).toFixed(2)}" fill="#2c3e50" font-size="12" font-weight="bold">0°</text>
+                    <text x="10" y="${(height / 2 + 32).toFixed(2)}" fill="#2c3e50" font-size="11">180°W → 180°E</text>
+                </svg>
+            `;
+
+            mapSummary.textContent = `Etapas exibidas: ${segments.length}. Etapas desenhadas: ${segments.filter((segment) => bases[segment.orig] && bases[segment.dest]).length}. Bases plotadas: ${plottedBases.size}.`;
+
+            const missing = [...missingBases].filter(Boolean).sort();
+            if (missing.length) {
+                missingBox.style.display = 'block';
+                missingList.innerHTML = missing.map((base) => `<span class="base-pill">${escapeHtml(base)}</span>`).join('');
+            } else {
+                missingBox.style.display = 'none';
+                missingList.innerHTML = '';
+            }
+        }
+
+        function renderCurrentView() {
+            updateDateFilterControls();
+            const filteredSegments = getFilteredSegments();
+            renderRouteMap(filteredSegments);
+            renderTimeline(filteredSegments, _currentFileName);
+        }
+
         function renderTimeline(segments, fileName) {
             const output = document.getElementById('timelineOutput');
             if (!segments.length) {
-                output.innerHTML = '<p class="error">Nenhum segmento válido encontrado no DayRep selecionado.</p>';
+                output.innerHTML = _allSegments.length
+                    ? '<p class="error">Nenhum voo encontrado para o filtro de data selecionado.</p>'
+                    : '<p class="error">Nenhum segmento válido encontrado no DayRep selecionado.</p>';
                 return;
             }
 
@@ -278,7 +570,7 @@
             });
 
             const regs = Object.keys(grouped).sort();
-            let html = `<p><b>Arquivo:</b> ${escapeHtml(fileName)} | <b>Segmentos válidos:</b> ${segments.length} | <b>Matrículas:</b> ${regs.length}</p>`;
+            let html = `<p><b>Arquivo:</b> ${escapeHtml(fileName)} | <b>Segmentos exibidos:</b> ${segments.length} | <b>Total carregado:</b> ${_allSegments.length} | <b>Matrículas:</b> ${regs.length}${_selectedDateISO ? ` | <b>Data:</b> ${escapeHtml(formatDateLabel(_selectedDateISO))}` : ''}</p>`;
 
             let wxBtnIdx = 0;
             const orderedSegments = [];
@@ -332,7 +624,10 @@
                     const doc = parser.parseFromString(e.target.result, 'text/html');
                     const segments = parseFlightsFromDoc(doc);
                     if (!segments.length) {
-                        renderTimeline([], file.name);
+                        _allSegments = [];
+                        _currentFileName = file.name;
+                        _selectedDateISO = '';
+                        renderCurrentView();
                         alert('Nenhum voo válido encontrado. Verifique se o arquivo DayRep contém tabela com DATE/REG/DEP/ARR/OrgSTD/OrgSTA.');
                         return;
                     }
@@ -343,12 +638,15 @@
                         segmentCount: segments.length
                     };
 
+                    _allSegments = segments.slice();
+                    _currentFileName = file.name;
+                    _selectedDateISO = '';
                     localStorage.setItem('currentDayRepSegments', JSON.stringify(segments));
                     localStorage.setItem('currentDayRep', JSON.stringify(segments));
                     localStorage.setItem('currentDayRepMeta', JSON.stringify(dayRepMeta));
                     localStorage.removeItem('lastAnalysis');
 
-                    renderTimeline(segments, file.name);
+                    renderCurrentView();
                     alert('Timeline gerada e salva. A análise anterior foi invalidada para este novo DayRep.');
                 } catch (error) {
                     document.getElementById('timelineOutput').innerHTML = `<p class="error">Falha ao processar o arquivo: ${escapeHtml(error.message)}</p>`;
@@ -367,7 +665,10 @@
                 const metaRaw = localStorage.getItem('currentDayRepMeta');
                 const meta = metaRaw ? JSON.parse(metaRaw) : {};
                 const fileName = (meta && meta.fileName) ? meta.fileName : 'DayRep';
-                renderTimeline(segments, fileName);
+                _allSegments = segments.slice();
+                _currentFileName = fileName;
+                _selectedDateISO = '';
+                renderCurrentView();
                 if (meta && meta.loadedAt) {
                     const output = document.getElementById('timelineOutput');
                     const info = document.createElement('p');
@@ -619,6 +920,7 @@
         let _wxSegmentList = [];
 
         async function loadWeatherFlags(segments) {
+            Object.keys(_wxSegmentStore).forEach((key) => delete _wxSegmentStore[key]);
             _wxSegmentList = segments;
             const cfg = getWxConfig();
             const bases = cfg.bases || {};
