@@ -134,8 +134,8 @@
                     reg: firstIndex('REG'),
                     dep: firstIndex('DEP'),
                     arr: firstIndex('ARR'),
-                    std: firstIndex('STD'),
-                    sta: firstIndex('STA'),
+                    std: firstIndex('ORGSTD'),
+                    sta: firstIndex('ORGSTA'),
                     etd: firstIndex('ETD'),
                     eta: firstIndex('ETA'),
                     ac: firstIndex('AC'),
@@ -333,7 +333,7 @@
                     const segments = parseFlightsFromDoc(doc);
                     if (!segments.length) {
                         renderTimeline([], file.name);
-                        alert('Nenhum voo válido encontrado. Verifique se o arquivo DayRep contém tabela com DATE/REG/DEP/ARR/STD/STA.');
+                        alert('Nenhum voo válido encontrado. Verifique se o arquivo DayRep contém tabela com DATE/REG/DEP/ARR/OrgSTD/OrgSTA.');
                         return;
                     }
 

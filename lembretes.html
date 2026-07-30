@@ -212,7 +212,7 @@
     <!-- TXT Import (moved to end of page) -->
     <div class="pdf-section" style="margin-top:20px;">
         <h3>📄 Importar DayList (TXT)</h3>
-        <div class="hint" style="margin-bottom:12px;" id="daylistHint">Faça upload do DayList em formato TXT para criar automaticamente os lembretes de <strong>Flight Check</strong> (ETD −3h) e <strong>Crew Wake Up</strong> (ETD −2h).</div>
+        <div class="hint" style="margin-bottom:12px;" id="daylistHint">Faça upload do DayList em formato TXT para criar automaticamente os lembretes de <strong>Flight Check</strong> (ETD −3h) e <strong>Crew Wake Up</strong> (ETD −2h10m).</div>
         <div class="upload-area">
             <label class="custom-upload-label" for="daylistFile">📁 Escolher DayList TXT</label>
             <input type="file" id="daylistFile" accept=".txt" onchange="onDayListFileSelected()">
@@ -339,7 +339,7 @@
 
         // Called when the ETD (UTC) field changes.
         // Updates the "ETD: HH:MM" token in the note field and recalculates the alert datetime
-        // according to the existing Flight Check (−3 h) / Crew Wakeup (−2 h or −2h15m) rules.
+        // according to the existing Flight Check (−3 h) / Crew Wakeup (−2h10m or −2h25m) rules.
         function onEtdChange() {
             const etdVal = document.getElementById('eventEtd').value;
             if (!etdVal) return;
@@ -360,7 +360,7 @@
                 offsetMs = 3 * 60 * 60 * 1000;
             } else if (category === 'Crew Wakeup') {
                 const isEarly = EARLY_WAKEUP_REGS.has(reg);
-                offsetMs = isEarly ? (2 * 60 + 15) * 60 * 1000 : 2 * 60 * 60 * 1000;
+                offsetMs = isEarly ? (2 * 60 + 25) * 60 * 1000 : (2 * 60 + 10) * 60 * 1000;
             } else {
                 return; // no auto-update for Generic / Other
             }
@@ -804,7 +804,7 @@
 
         // ── DayList PDF import ─────────────────────────────────────────────────
 
-        // Registrations that require crew wake-up 2h15m before ETD (instead of 2h)
+        // Registrations that require crew wake-up 2h25m before ETD (instead of 2h10m)
         const EARLY_WAKEUP_REGS = new Set(['LX-UCV', 'LX-VCV', 'LX-WCV', 'LX-YCV']);
 
         // Default departure airport used when the DayList doesn't specify origin
@@ -815,7 +815,7 @@
             const el = document.getElementById('daylistHint');
             if (!el) return;
             const regs = Array.from(EARLY_WAKEUP_REGS).join(' / ');
-            el.innerHTML = `Faça upload do DayList TXT para criar automaticamente os lembretes de <strong>Flight Check</strong> (ETD −3h) e <strong>Crew Wake Up</strong> (ETD −2h, ou −2h15m para ${regs}).`;
+            el.innerHTML = `Faça upload do DayList TXT para criar automaticamente os lembretes de <strong>Flight Check</strong> (ETD −3h) e <strong>Crew Wake Up</strong> (ETD −2h10m, ou −2h25m para ${regs}).`;
         })();
 
         function onDayListFileSelected() {
@@ -997,9 +997,9 @@
                     added++;
                 }
 
-                // ── Crew Wake Up: ETD − 2h (or − 2h15m for special regs) ────
+                // ── Crew Wake Up: ETD − 2h10m (or − 2h25m for special regs) ────
                 const isEarly = EARLY_WAKEUP_REGS.has(f.reg);
-                const wakeupMs = isEarly ? (2 * 60 + 15) * 60 * 1000 : 2 * 60 * 60 * 1000;
+                const wakeupMs = isEarly ? (2 * 60 + 25) * 60 * 1000 : (2 * 60 + 10) * 60 * 1000;
                 const wuId = `rem-wu-${f.reg}-${f.etd}-${dateKey}`;
                 if (!list.find((e) => e.id === wuId)) {
                     const wuTime = new Date(etdDate.getTime() - wakeupMs);
