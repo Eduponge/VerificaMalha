@@ -225,7 +225,9 @@
                     dep: firstIndex('DEP'),
                     arr: firstIndex('ARR'),
                     std: firstIndex('ORGSTD'),
+                    stdFallback: firstIndex('STD'),
                     sta: firstIndex('ORGSTA'),
+                    staFallback: firstIndex('STA'),
                     etd: firstIndex('ETD'),
                     eta: firstIndex('ETA'),
                     ac: firstIndex('AC'),
@@ -234,7 +236,9 @@
                     crew: firstIndex('CREW#')
                 };
 
-                if (headerMap.date >= 0 && headerMap.reg >= 0 && headerMap.dep >= 0 && headerMap.arr >= 0 && headerMap.std >= 0 && headerMap.sta >= 0) {
+                const hasStd = headerMap.std >= 0 || headerMap.stdFallback >= 0;
+                const hasSta = headerMap.sta >= 0 || headerMap.staFallback >= 0;
+                if (headerMap.date >= 0 && headerMap.reg >= 0 && headerMap.dep >= 0 && headerMap.arr >= 0 && hasStd && hasSta) {
                     return { map: headerMap, row };
                 }
             }
@@ -259,8 +263,8 @@
                 const reg = rowText(row, header.map.reg).toUpperCase();
                 const dep = rowText(row, header.map.dep).toUpperCase();
                 const arr = rowText(row, header.map.arr).toUpperCase();
-                const std = rowText(row, header.map.std);
-                const sta = rowText(row, header.map.sta);
+                const std = rowText(row, header.map.std) || rowText(row, header.map.stdFallback);
+                const sta = rowText(row, header.map.sta) || rowText(row, header.map.staFallback);
 
                 if (!parseDateParts(dateRaw) || !reg || !dep || !arr || !/^\d{1,2}:\d{2}$/.test(std) || !/^\d{1,2}:\d{2}$/.test(sta)) {
                     continue;
@@ -628,7 +632,7 @@
                         _currentFileName = file.name;
                         _selectedDateISO = '';
                         renderCurrentView();
-                        alert('Nenhum voo válido encontrado. Verifique se o arquivo DayRep contém tabela com DATE/REG/DEP/ARR/OrgSTD/OrgSTA.');
+                        alert('Nenhum voo válido encontrado. Verifique se o arquivo DayRep contém tabela com DATE/REG/DEP/ARR/STD/STA (ou OrgSTD/OrgSTA).');
                         return;
                     }
 
