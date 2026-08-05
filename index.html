@@ -74,16 +74,28 @@
             display: inline-block;
             vertical-align: middle;
         }
-        .legend-line { width: 24px; height: 0; border-top: 3px solid #3498DB; }
         .legend-dot { width: 10px; height: 10px; border-radius: 50%; background: #E74C3C; }
+        .map-origin-legend { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; }
+        .map-origin-legend-item { display: inline-flex; align-items: center; gap: 5px; background: #f4f8fb; border: 1px solid #d6eaf8; border-radius: 10px; padding: 2px 8px; }
+        .map-origin-legend-item .origin-swatch { display: inline-block; width: 18px; height: 3px; border-radius: 2px; }
+        .map-zoom-bar { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+        .map-zoom-bar button {
+            background: #2c3e50; color: #fff; border: none; border-radius: 4px;
+            padding: 4px 12px; font-size: 16px; cursor: pointer; font-weight: bold; line-height: 1;
+        }
+        .map-zoom-bar button:hover { background: #1a252f; }
+        .map-zoom-bar .zoom-label { font-size: 12px; color: #666; }
         .map-svg-wrap {
             width: 100%;
-            overflow-x: auto;
+            overflow: hidden;
             border: 1px solid #d6eaf8;
             border-radius: 4px;
-            background: #eef7fd;
+            background: #c9e8f5;
+            cursor: grab;
+            user-select: none;
         }
-        .map-svg-wrap svg { display: block; width: 100%; height: auto; min-width: 960px; }
+        .map-svg-wrap.panning { cursor: grabbing; }
+        .map-svg-wrap svg { display: block; width: 100%; height: auto; min-width: 960px; touch-action: none; }
         .missing-bases {
             margin-top: 12px;
             padding: 10px 12px;
@@ -144,14 +156,20 @@
             <div class="map-header">
                 <div>
                     <h3>🌍 Mapa das Etapas</h3>
-                    <div class="small">Plano cartesiano com projeção simples latitude/longitude (90°N/90°S e 180°W/180°E).</div>
+                    <div class="small">Projeção equiretangular (90°N/90°S e 180°W/180°E). Arraste para navegar.</div>
                 </div>
                 <div class="map-legend">
-                    <span class="legend-item"><span class="legend-line"></span> Etapa de voo</span>
                     <span class="legend-item"><span class="legend-dot"></span> Base com coordenadas</span>
                 </div>
             </div>
-            <div class="small" id="mapSummary"></div>
+            <div class="map-origin-legend" id="mapOriginLegend"></div>
+            <div class="small" id="mapSummary" style="margin-top:6px;"></div>
+            <div class="map-zoom-bar">
+                <button type="button" onclick="mapZoom(1.3)" title="Zoom in">＋</button>
+                <button type="button" onclick="mapZoom(1/1.3)" title="Zoom out">－</button>
+                <button type="button" onclick="mapResetView()" title="Resetar zoom" style="font-size:13px;padding:4px 10px;">⟳ Reset</button>
+                <span class="zoom-label" id="mapZoomLabel"></span>
+            </div>
             <div class="map-svg-wrap" id="mapSvgWrap"></div>
             <div class="missing-bases" id="missingBasesBox" style="display:none;">
                 <strong>Bases sem coordenadas em meteo.html:</strong>
@@ -454,6 +472,7 @@
             const mapSummary = document.getElementById('mapSummary');
             const missingBox = document.getElementById('missingBasesBox');
             const missingList = document.getElementById('missingBasesList');
+            const originLegend = document.getElementById('mapOriginLegend');
 
             if (!_allSegments.length) {
                 panel.style.display = 'none';
@@ -461,6 +480,7 @@
                 mapSummary.textContent = '';
                 missingBox.style.display = 'none';
                 missingList.innerHTML = '';
+                originLegend.innerHTML = '';
                 return;
             }
 
@@ -472,8 +492,21 @@
             const height = 540;
             const missingBases = new Set();
             const plottedBases = new Map();
-            const routeLines = [];
 
+            // Paleta de cores distinguíveis para origens
+            const ORIGIN_COLORS = [
+                '#E74C3C','#2980B9','#27AE60','#F39C12','#8E44AD',
+                '#16A085','#D35400','#2C3E50','#C0392B','#1ABC9C',
+                '#F1C40F','#7F8C8D','#6C3483','#148F77','#B7950B'
+            ];
+            const originList = [...new Set(segments.map((s) => s.orig))].filter((o) => bases[o]);
+            const originColorMap = {};
+            originList.forEach((orig, i) => {
+                originColorMap[orig] = ORIGIN_COLORS[i % ORIGIN_COLORS.length];
+            });
+
+            // Construir linhas de rota coloridas por origem
+            const routeLines = [];
             segments.forEach((segment) => {
                 const origCoord = bases[segment.orig];
                 const destCoord = bases[segment.dest];
@@ -483,25 +516,27 @@
 
                 plottedBases.set(segment.orig, origCoord);
                 plottedBases.set(segment.dest, destCoord);
+                const color = originColorMap[segment.orig] || '#3498DB';
                 buildWrappedRouteSegments(origCoord, destCoord).forEach(([start, end]) => {
                     const startPoint = projectLonLat(start.lon, start.lat, width, height);
                     const endPoint = projectLonLat(end.lon, end.lat, width, height);
-                    routeLines.push(`<line x1="${startPoint.x.toFixed(2)}" y1="${startPoint.y.toFixed(2)}" x2="${endPoint.x.toFixed(2)}" y2="${endPoint.y.toFixed(2)}" stroke="#3498DB" stroke-width="2.4" stroke-linecap="round" opacity="0.75" />`);
+                    routeLines.push(`<line x1="${startPoint.x.toFixed(2)}" y1="${startPoint.y.toFixed(2)}" x2="${endPoint.x.toFixed(2)}" y2="${endPoint.y.toFixed(2)}" stroke="${escapeHtml(color)}" stroke-width="2.4" stroke-linecap="round" opacity="0.82" />`);
                 });
             });
 
+            // Grade
             const gridLines = [];
             for (let lon = -180; lon <= 180; lon += 60) {
                 const point = projectLonLat(lon, 0, width, height);
-                gridLines.push(`<line x1="${point.x.toFixed(2)}" y1="0" x2="${point.x.toFixed(2)}" y2="${height}" stroke="#bcd9ea" stroke-width="${lon === 0 ? 1.5 : 1}" opacity="${lon === 0 ? 0.9 : 0.7}" />`);
+                gridLines.push(`<line x1="${point.x.toFixed(2)}" y1="0" x2="${point.x.toFixed(2)}" y2="${height}" stroke="#a8d4e8" stroke-width="${lon === 0 ? 1.5 : 1}" opacity="${lon === 0 ? 0.9 : 0.6}" />`);
                 if (lon < 180) {
-                    gridLines.push(`<text x="${(point.x + 4).toFixed(2)}" y="${height - 8}" fill="#5d6d7e" font-size="11">${lon}°</text>`);
+                    gridLines.push(`<text x="${(point.x + 4).toFixed(2)}" y="${height - 8}" fill="#4a6a7a" font-size="11">${lon}°</text>`);
                 }
             }
             for (let lat = -60; lat <= 60; lat += 30) {
                 const point = projectLonLat(0, lat, width, height);
-                gridLines.push(`<line x1="0" y1="${point.y.toFixed(2)}" x2="${width}" y2="${point.y.toFixed(2)}" stroke="#bcd9ea" stroke-width="${lat === 0 ? 1.5 : 1}" opacity="${lat === 0 ? 0.9 : 0.7}" />`);
-                gridLines.push(`<text x="6" y="${(point.y - 4).toFixed(2)}" fill="#5d6d7e" font-size="11">${lat}°</text>`);
+                gridLines.push(`<line x1="0" y1="${point.y.toFixed(2)}" x2="${width}" y2="${point.y.toFixed(2)}" stroke="#a8d4e8" stroke-width="${lat === 0 ? 1.5 : 1}" opacity="${lat === 0 ? 0.9 : 0.6}" />`);
+                gridLines.push(`<text x="6" y="${(point.y - 4).toFixed(2)}" fill="#4a6a7a" font-size="11">${lat}°</text>`);
             }
 
             const land = WORLD_LANDMASSES.map((polygon) => {
@@ -511,33 +546,44 @@
                         return `${point.x.toFixed(2)},${point.y.toFixed(2)}`;
                     })
                     .join(' ');
-                return `<polygon points="${points}" fill="#d4e6c3" stroke="#9db68d" stroke-width="1.1" opacity="0.95"></polygon>`;
+                return `<polygon points="${points}" fill="#d4e6c3" stroke="#8fac7e" stroke-width="0.8" opacity="0.97"></polygon>`;
             }).join('');
 
             const basePoints = [...plottedBases.entries()].map(([code, coord]) => {
                 const point = projectLonLat(coord.lon, coord.lat, width, height);
                 const labelX = Math.min(width - 38, point.x + 7);
                 const labelY = Math.max(12, point.y - 7);
+                const isOrigin = Boolean(originColorMap[code]);
+                const dotColor = isOrigin ? originColorMap[code] : '#E74C3C';
                 return `
-                    <circle cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="4.5" fill="#E74C3C" stroke="#ffffff" stroke-width="1.5"></circle>
+                    <circle cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="${isOrigin ? 6 : 4.5}" fill="${escapeHtml(dotColor)}" stroke="#ffffff" stroke-width="1.8"></circle>
                     <text x="${labelX.toFixed(2)}" y="${labelY.toFixed(2)}" fill="#1f2d3d" font-size="11" font-weight="bold">${escapeHtml(code)}</text>
                 `;
             }).join('');
 
             mapWrap.innerHTML = `
-                <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Mapa das etapas de voo">
-                    <rect x="0" y="0" width="${width}" height="${height}" fill="#eef7fd"></rect>
+                <svg id="mapSvg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Mapa das etapas de voo" style="display:block;width:100%;height:auto;min-width:960px;touch-action:none;">
+                    <rect x="0" y="0" width="${width}" height="${height}" fill="#c9e8f5"></rect>
                     ${gridLines.join('')}
                     ${land}
                     ${routeLines.join('')}
                     ${basePoints}
-                    <rect x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" fill="none" stroke="#7fb3d5" stroke-width="1"></rect>
+                    <rect x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" fill="none" stroke="#5a9cbd" stroke-width="1.5"></rect>
                     <text x="10" y="18" fill="#2c3e50" font-size="12" font-weight="bold">90°N</text>
                     <text x="10" y="${height - 10}" fill="#2c3e50" font-size="12" font-weight="bold">90°S</text>
                     <text x="10" y="${(height / 2 + 16).toFixed(2)}" fill="#2c3e50" font-size="12" font-weight="bold">0°</text>
                     <text x="10" y="${(height / 2 + 32).toFixed(2)}" fill="#2c3e50" font-size="11">180°W → 180°E</text>
                 </svg>
             `;
+
+            // Legenda de origens
+            if (originList.length) {
+                originLegend.innerHTML = originList.map((orig) =>
+                    `<span class="map-origin-legend-item"><span class="origin-swatch" style="background:${escapeHtml(originColorMap[orig])};"></span>${escapeHtml(orig)}</span>`
+                ).join('');
+            } else {
+                originLegend.innerHTML = '';
+            }
 
             mapSummary.textContent = `Etapas exibidas: ${segments.length}. Etapas desenhadas: ${segments.filter((segment) => bases[segment.orig] && bases[segment.dest]).length}. Bases plotadas: ${plottedBases.size}.`;
 
@@ -549,6 +595,122 @@
                 missingBox.style.display = 'none';
                 missingList.innerHTML = '';
             }
+
+            // Inicializar zoom/pan após renderizar SVG
+            initMapInteraction();
+        }
+
+        // --- Zoom e Pan do mapa ---
+        let _mapViewBox = null; // { x, y, w, h }
+
+        function _getMapSvg() { return document.getElementById('mapSvg'); }
+
+        function _parseViewBox(svg) {
+            const vb = svg.getAttribute('viewBox').split(' ').map(Number);
+            return { x: vb[0], y: vb[1], w: vb[2], h: vb[3] };
+        }
+
+        function _applyViewBox(svg, vb) {
+            svg.setAttribute('viewBox', `${vb.x.toFixed(2)} ${vb.y.toFixed(2)} ${vb.w.toFixed(2)} ${vb.h.toFixed(2)}`);
+            _mapViewBox = vb;
+            _updateZoomLabel();
+        }
+
+        function _updateZoomLabel() {
+            const svg = _getMapSvg();
+            if (!svg) return;
+            const origW = 1200;
+            const vb = _parseViewBox(svg);
+            const zoom = (origW / vb.w * 100).toFixed(0);
+            const lbl = document.getElementById('mapZoomLabel');
+            if (lbl) lbl.textContent = `Zoom: ${zoom}%`;
+        }
+
+        function mapZoom(factor) {
+            const svg = _getMapSvg();
+            if (!svg) return;
+            const vb = _parseViewBox(svg);
+            const origW = 1200, origH = 540;
+            const newW = Math.max(origW * 0.15, Math.min(origW * 4, vb.w / factor));
+            const newH = newW * (origH / origW);
+            const cx = vb.x + vb.w / 2;
+            const cy = vb.y + vb.h / 2;
+            const newX = Math.max(-origW, Math.min(origW, cx - newW / 2));
+            const newY = Math.max(-origH, Math.min(origH, cy - newH / 2));
+            _applyViewBox(svg, { x: newX, y: newY, w: newW, h: newH });
+        }
+
+        function mapResetView() {
+            const svg = _getMapSvg();
+            if (!svg) return;
+            _applyViewBox(svg, { x: 0, y: 0, w: 1200, h: 540 });
+        }
+
+        function initMapInteraction() {
+            const mapWrap = document.getElementById('mapSvgWrap');
+            const svg = _getMapSvg();
+            if (!mapWrap || !svg) return;
+            _updateZoomLabel();
+
+            let isPanning = false;
+            let startX = 0, startY = 0;
+            let startVB = null;
+
+            function svgCoordsFromEvent(e) {
+                const rect = svg.getBoundingClientRect();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                const vb = _parseViewBox(svg);
+                return {
+                    x: ((clientX - rect.left) / rect.width) * vb.w + vb.x,
+                    y: ((clientY - rect.top) / rect.height) * vb.h + vb.y
+                };
+            }
+
+            // Remove listeners antigos clonando o elemento
+            const newWrap = mapWrap.cloneNode(false);
+            while (mapWrap.firstChild) newWrap.appendChild(mapWrap.firstChild);
+            mapWrap.parentNode.replaceChild(newWrap, mapWrap);
+            const wrap = newWrap;
+            const svgEl = document.getElementById('mapSvg');
+
+            function onPointerDown(e) {
+                isPanning = true;
+                wrap.classList.add('panning');
+                const pos = svgCoordsFromEvent(e);
+                startX = pos.x;
+                startY = pos.y;
+                startVB = _parseViewBox(svgEl);
+                e.preventDefault();
+            }
+            function onPointerMove(e) {
+                if (!isPanning) return;
+                const pos = svgCoordsFromEvent(e);
+                const dx = startX - pos.x;
+                const dy = startY - pos.y;
+                const origW = 1200, origH = 540;
+                const newX = Math.max(-origW, Math.min(origW, startVB.x + dx));
+                const newY = Math.max(-origH, Math.min(origH, startVB.y + dy));
+                _applyViewBox(svgEl, { x: newX, y: newY, w: startVB.w, h: startVB.h });
+                e.preventDefault();
+            }
+            function onPointerUp() {
+                isPanning = false;
+                wrap.classList.remove('panning');
+            }
+
+            wrap.addEventListener('mousedown', onPointerDown);
+            window.addEventListener('mousemove', onPointerMove);
+            window.addEventListener('mouseup', onPointerUp);
+            wrap.addEventListener('touchstart', onPointerDown, { passive: false });
+            window.addEventListener('touchmove', onPointerMove, { passive: false });
+            window.addEventListener('touchend', onPointerUp);
+
+            // Zoom com scroll do mouse
+            wrap.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                mapZoom(e.deltaY < 0 ? 1.15 : 1 / 1.15);
+            }, { passive: false });
         }
 
         function renderCurrentView() {
