@@ -297,8 +297,9 @@
 
                 // OrgSTD/OrgSTA usam OrgDate como referência de data; STD/STA usam DATE
                 const orgDateRaw = rowText(row, header.map.orgDate);
-                const stdDateRaw = usingOrgStd ? (parseDateParts(orgDateRaw) ? orgDateRaw : dateRaw) : dateRaw;
-                const staDateRaw = usingOrgSta ? (parseDateParts(orgDateRaw) ? orgDateRaw : dateRaw) : dateRaw;
+                const effectiveOrgDateRaw = parseDateParts(orgDateRaw) ? orgDateRaw : dateRaw;
+                const stdDateRaw = usingOrgStd ? effectiveOrgDateRaw : dateRaw;
+                const staDateRaw = usingOrgSta ? effectiveOrgDateRaw : dateRaw;
                 const stdDt = parseDateTime(stdDateRaw, std);
                 const staDt = adjustEnd(stdDt, parseDateTime(staDateRaw, sta));
                 const etdRaw = rowText(row, header.map.etd);
