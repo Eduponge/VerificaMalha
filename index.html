@@ -242,6 +242,7 @@
                     reg: firstIndex('REG'),
                     dep: firstIndex('DEP'),
                     arr: firstIndex('ARR'),
+                    orgDate: firstIndex('ORGDATE'),
                     std: firstIndex('ORGSTD'),
                     stdFallback: firstIndex('STD'),
                     sta: firstIndex('ORGSTA'),
@@ -281,17 +282,29 @@
                 const reg = rowText(row, header.map.reg).toUpperCase();
                 const dep = rowText(row, header.map.dep).toUpperCase();
                 const arr = rowText(row, header.map.arr).toUpperCase();
-                const std = rowText(row, header.map.std) || rowText(row, header.map.stdFallback);
-                const sta = rowText(row, header.map.sta) || rowText(row, header.map.staFallback);
+                const orgStdRaw = rowText(row, header.map.std);
+                const stdFallbackRaw = rowText(row, header.map.stdFallback);
+                const usingOrgStd = /^\d{1,2}:\d{2}$/.test(orgStdRaw);
+                const std = usingOrgStd ? orgStdRaw : stdFallbackRaw;
+                const orgStaRaw = rowText(row, header.map.sta);
+                const staFallbackRaw = rowText(row, header.map.staFallback);
+                const usingOrgSta = /^\d{1,2}:\d{2}$/.test(orgStaRaw);
+                const sta = usingOrgSta ? orgStaRaw : staFallbackRaw;
 
                 if (!parseDateParts(dateRaw) || !reg || !dep || !arr || !/^\d{1,2}:\d{2}$/.test(std) || !/^\d{1,2}:\d{2}$/.test(sta)) {
                     continue;
                 }
 
-                const stdDt = parseDateTime(dateRaw, std);
-                const staDt = adjustEnd(stdDt, parseDateTime(dateRaw, sta));
+                // OrgSTD/OrgSTA usam OrgDate como referência de data; STD/STA usam DATE
+                const orgDateRaw = rowText(row, header.map.orgDate);
+                const effectiveOrgDateRaw = parseDateParts(orgDateRaw) ? orgDateRaw : dateRaw;
+                const stdDateRaw = usingOrgStd ? effectiveOrgDateRaw : dateRaw;
+                const staDateRaw = usingOrgSta ? effectiveOrgDateRaw : dateRaw;
+                const stdDt = parseDateTime(stdDateRaw, std);
+                const staDt = adjustEnd(stdDt, parseDateTime(staDateRaw, sta));
                 const etdRaw = rowText(row, header.map.etd);
                 const etaRaw = rowText(row, header.map.eta);
+                // ETD e ETA sempre usam DATE como referência de data
                 const etdDt = /^\d{1,2}:\d{2}$/.test(etdRaw) ? parseDateTime(dateRaw, etdRaw) : null;
                 const etaDt = /^\d{1,2}:\d{2}$/.test(etaRaw) ? adjustEnd(etdDt || stdDt, parseDateTime(dateRaw, etaRaw)) : null;
 
