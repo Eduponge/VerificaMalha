@@ -183,12 +183,18 @@
             return true;
         }
 
+        function segmentDepReferenceTime(segment) {
+            return norm(segment.etd) || norm(segment.std) || norm(segment.origStd);
+        }
+
         function segmentTimeMinutes(segment) {
-            // Usar ETD como referência de partida quando disponível; STD só como fallback
+            // Hierarquia da partida: ETD -> STD -> OrigSTD
             const fromEtd = parseTimeToMinutes(segment.etd);
             if (fromEtd != null) return fromEtd;
             const fromStd = parseTimeToMinutes(segment.std);
             if (fromStd != null) return fromStd;
+            const fromOrigStd = parseTimeToMinutes(segment.origStd);
+            if (fromOrigStd != null) return fromOrigStd;
             const depISO = norm(segment.depDateTimeISO);
             if (!depISO) return null;
             const depDate = new Date(depISO);
@@ -197,10 +203,13 @@
         }
 
         function segmentArrTimeMinutes(segment) {
+            // Hierarquia da chegada: ETA -> STA -> OrigSTA
             const fromEta = parseTimeToMinutes(segment.eta);
             if (fromEta != null) return fromEta;
             const fromSta = parseTimeToMinutes(segment.sta);
             if (fromSta != null) return fromSta;
+            const fromOrigSta = parseTimeToMinutes(segment.origSta);
+            if (fromOrigSta != null) return fromOrigSta;
             const arrISO = norm(segment.arrDateTimeISO);
             if (!arrISO) return null;
             const arrDate = new Date(arrISO);
@@ -526,7 +535,7 @@
                 orig: segment.orig || segment.dep || '-',
                 dest: segment.dest || segment.arr || '-',
                 date: segment.dateRaw || segment.date || '-',
-                time: segment.std || '-',
+                time: segmentDepReferenceTime(segment) || '-',
                 reason: reasons.join(' | '),
                 description: restriction.description || restriction.desc || ''
             };

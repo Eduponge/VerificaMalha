@@ -56,8 +56,8 @@ Campos vazios funcionam como wildcard (não restritivo).
 
 - Critérios gerais em **AND**.
 - Blocos de hora em **OR** entre as 3 janelas.
-- `Max Arr Delay/Anticipation`: compara `Atraso/Adiantamento de Chegada` (`ETA − STA`) com o limite cadastrado. Valor positivo = máximo de atraso; valor negativo = máximo de antecipação aceitável.
-- `Max Dep Delay/Anticipation`: compara `Atraso/Adiantamento de Partida` (`ETD − STD`) com o limite cadastrado. Valor positivo = máximo de atraso; valor negativo = máximo de antecipação aceitável.
+- `Max Arr Delay/Anticipation`: compara `Atraso/Adiantamento de Chegada` (`ETA − STA`, com fallback para `OrigSTA` quando `STA` não existir) com o limite cadastrado. Valor positivo = máximo de atraso; valor negativo = máximo de antecipação aceitável.
+- `Max Dep Delay/Anticipation`: compara `Atraso/Adiantamento de Partida` (`ETD − STD`, com fallback para `OrigSTD` quando `STD` não existir) com o limite cadastrado. Valor positivo = máximo de atraso; valor negativo = máximo de antecipação aceitável.
 - `Max Ground Time`: compara tempo de solo estimado entre chegada atual e partida da próxima etapa da mesma matrícula.
 - `Min Crew Composition`: compara com `Crew #` do DayRep (evento quando crew real fica abaixo do mínimo exigido).
 
@@ -68,8 +68,9 @@ Parser implementado com heurística resiliente para DayRep HTML:
 1. Procura linha de cabeçalho com `DATE`, `REG`, `DEP`, `ARR`, `STD`, `STA`.
 2. Usa primeira ocorrência de cada coluna principal (evita colunas repetidas do relatório).
 3. Aceita datas `dd/mm/yy` ou `dd/mm/yyyy` e horários `HH:MM`.
-4. Ajusta cruzamento de meia-noite quando horário de chegada é menor que partida.
-5. Ignora linhas sem dados mínimos de voo.
+4. Para referências operacionais, usa a hierarquia `ETD > STD > OrgSTD` na partida e `ETA > STA > OrgSTA` no pouso.
+5. Ajusta cruzamento de meia-noite quando horário de chegada é menor que partida.
+6. Ignora linhas sem dados mínimos de voo.
 
 ## Visualização gráfica em `index.html`
 
