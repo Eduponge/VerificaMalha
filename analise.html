@@ -184,11 +184,7 @@
         }
 
         function segmentDepReferenceTime(segment) {
-            return norm(segment.etd) || norm(segment.std) || norm(segment.origStd) || norm(segment.depReferenceTime);
-        }
-
-        function segmentArrReferenceTime(segment) {
-            return norm(segment.eta) || norm(segment.sta) || norm(segment.origSta) || norm(segment.arrReferenceTime);
+            return norm(segment.etd) || norm(segment.std) || norm(segment.origStd);
         }
 
         function segmentTimeMinutes(segment) {

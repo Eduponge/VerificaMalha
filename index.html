@@ -300,10 +300,10 @@
                 // OrgSTD/OrgSTA usam OrgDate como referência de data; STD/STA usam DATE
                 const orgDateRaw = rowText(row, header.map.orgDate);
                 const effectiveOrgDateRaw = parseDateParts(orgDateRaw) ? orgDateRaw : dateRaw;
-                const stdDateRaw = hasStd ? dateRaw : effectiveOrgDateRaw;
-                const staDateRaw = hasSta ? dateRaw : effectiveOrgDateRaw;
-                const stdDt = parseDateTime(stdDateRaw, effectiveStd);
-                const staDt = adjustEnd(stdDt, parseDateTime(staDateRaw, effectiveSta));
+                const effectiveStdDateRaw = hasStd ? dateRaw : effectiveOrgDateRaw;
+                const effectiveStaDateRaw = hasSta ? dateRaw : effectiveOrgDateRaw;
+                const stdDt = parseDateTime(effectiveStdDateRaw, effectiveStd);
+                const staDt = adjustEnd(stdDt, parseDateTime(effectiveStaDateRaw, effectiveSta));
                 const etdRaw = rowText(row, header.map.etd);
                 const etaRaw = rowText(row, header.map.eta);
                 // ETD e ETA sempre usam DATE como referência de data
