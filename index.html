@@ -243,10 +243,10 @@
                     dep: firstIndex('DEP'),
                     arr: firstIndex('ARR'),
                     orgDate: firstIndex('ORGDATE'),
-                    std: firstIndex('ORGSTD'),
-                    stdFallback: firstIndex('STD'),
-                    sta: firstIndex('ORGSTA'),
-                    staFallback: firstIndex('STA'),
+                    origStd: firstIndex('ORGSTD'),
+                    std: firstIndex('STD'),
+                    origSta: firstIndex('ORGSTA'),
+                    sta: firstIndex('STA'),
                     etd: firstIndex('ETD'),
                     eta: firstIndex('ETA'),
                     ac: firstIndex('AC'),
@@ -255,8 +255,8 @@
                     crew: firstIndex('CREW#')
                 };
 
-                const hasStd = headerMap.std >= 0 || headerMap.stdFallback >= 0;
-                const hasSta = headerMap.sta >= 0 || headerMap.staFallback >= 0;
+                const hasStd = headerMap.origStd >= 0 || headerMap.std >= 0;
+                const hasSta = headerMap.origSta >= 0 || headerMap.sta >= 0;
                 if (headerMap.date >= 0 && headerMap.reg >= 0 && headerMap.dep >= 0 && headerMap.arr >= 0 && hasStd && hasSta) {
                     return { map: headerMap, row };
                 }
@@ -282,31 +282,35 @@
                 const reg = rowText(row, header.map.reg).toUpperCase();
                 const dep = rowText(row, header.map.dep).toUpperCase();
                 const arr = rowText(row, header.map.arr).toUpperCase();
-                const orgStdRaw = rowText(row, header.map.std);
-                const stdFallbackRaw = rowText(row, header.map.stdFallback);
-                const usingOrgStd = /^\d{1,2}:\d{2}$/.test(orgStdRaw);
-                const std = usingOrgStd ? orgStdRaw : stdFallbackRaw;
-                const orgStaRaw = rowText(row, header.map.sta);
-                const staFallbackRaw = rowText(row, header.map.staFallback);
-                const usingOrgSta = /^\d{1,2}:\d{2}$/.test(orgStaRaw);
-                const sta = usingOrgSta ? orgStaRaw : staFallbackRaw;
+                const origStdRaw = rowText(row, header.map.origStd);
+                const stdRaw = rowText(row, header.map.std);
+                const hasStd = /^\d{1,2}:\d{2}$/.test(stdRaw);
+                const hasOrigStd = /^\d{1,2}:\d{2}$/.test(origStdRaw);
+                const effectiveStd = hasStd ? stdRaw : (hasOrigStd ? origStdRaw : '');
+                const origStaRaw = rowText(row, header.map.origSta);
+                const staRaw = rowText(row, header.map.sta);
+                const hasSta = /^\d{1,2}:\d{2}$/.test(staRaw);
+                const hasOrigSta = /^\d{1,2}:\d{2}$/.test(origStaRaw);
+                const effectiveSta = hasSta ? staRaw : (hasOrigSta ? origStaRaw : '');
 
-                if (!parseDateParts(dateRaw) || !reg || !dep || !arr || !/^\d{1,2}:\d{2}$/.test(std) || !/^\d{1,2}:\d{2}$/.test(sta)) {
+                if (!parseDateParts(dateRaw) || !reg || !dep || !arr || !effectiveStd || !effectiveSta) {
                     continue;
                 }
 
                 // OrgSTD/OrgSTA usam OrgDate como referência de data; STD/STA usam DATE
                 const orgDateRaw = rowText(row, header.map.orgDate);
                 const effectiveOrgDateRaw = parseDateParts(orgDateRaw) ? orgDateRaw : dateRaw;
-                const stdDateRaw = usingOrgStd ? effectiveOrgDateRaw : dateRaw;
-                const staDateRaw = usingOrgSta ? effectiveOrgDateRaw : dateRaw;
-                const stdDt = parseDateTime(stdDateRaw, std);
-                const staDt = adjustEnd(stdDt, parseDateTime(staDateRaw, sta));
+                const stdDateRaw = hasStd ? dateRaw : effectiveOrgDateRaw;
+                const staDateRaw = hasSta ? dateRaw : effectiveOrgDateRaw;
+                const stdDt = parseDateTime(stdDateRaw, effectiveStd);
+                const staDt = adjustEnd(stdDt, parseDateTime(staDateRaw, effectiveSta));
                 const etdRaw = rowText(row, header.map.etd);
                 const etaRaw = rowText(row, header.map.eta);
                 // ETD e ETA sempre usam DATE como referência de data
                 const etdDt = /^\d{1,2}:\d{2}$/.test(etdRaw) ? parseDateTime(dateRaw, etdRaw) : null;
-                const etaDt = /^\d{1,2}:\d{2}$/.test(etaRaw) ? adjustEnd(etdDt || stdDt, parseDateTime(dateRaw, etaRaw)) : null;
+                const depDate = etdDt || stdDt;
+                const etaDt = /^\d{1,2}:\d{2}$/.test(etaRaw) ? adjustEnd(depDate || stdDt, parseDateTime(dateRaw, etaRaw)) : null;
+                const arrDate = etaDt || staDt;
 
                 // Atraso/Adiantamento de Partida: ETD − STD (negativo = adiantamento)
                 const depDelayMinutes = (etdDt && stdDt) ? Math.round((etdDt - stdDt) / 60000) : null;
@@ -314,11 +318,11 @@
                 const arrDelayMinutes = (etaDt && staDt) ? Math.round((etaDt - staDt) / 60000) : null;
 
                 const parts = parseDateParts(dateRaw);
-                // Usar ETD como referência de partida sempre que disponível; STD só como fallback
-                const depDate = etdDt || stdDt;
+                const depRef = etdRaw || stdRaw || origStdRaw;
+                const arrRef = etaRaw || staRaw || origStaRaw;
 
                 result.push({
-                    id: `${reg}-${dep}-${arr}-${(depDate ? depDate.toISOString() : dateRaw + '-' + std)}-${result.length}`,
+                    id: `${reg}-${dep}-${arr}-${(depDate ? depDate.toISOString() : dateRaw + '-' + effectiveStd)}-${result.length}`,
                     dateRaw,
                     dateISO: depDate ? depDate.toISOString().slice(0, 10) : '',
                     weekday: depDate ? depDate.getUTCDay() : null,
@@ -332,12 +336,16 @@
                     fleetType: rowText(row, header.map.ac).toUpperCase(),
                     orig: dep,
                     dest: arr,
-                    std,
-                    sta,
+                    std: stdRaw,
+                    origStd: origStdRaw,
+                    sta: staRaw,
+                    origSta: origStaRaw,
                     etd: etdRaw,
                     eta: etaRaw,
+                    depReferenceTime: depRef,
+                    arrReferenceTime: arrRef,
                     depDateTimeISO: depDate ? depDate.toISOString() : '',
-                    arrDateTimeISO: (etaDt || staDt) ? (etaDt || staDt).toISOString() : '',
+                    arrDateTimeISO: arrDate ? arrDate.toISOString() : '',
                     depDelayMinutes,
                     arrDelayMinutes,
                     crewCount: Number(rowText(row, header.map.crew)) || null,
@@ -362,8 +370,8 @@
                     const next = idx < list.length - 1 ? list[idx + 1] : null;
                     segment.previousSegmentId = previous ? previous.id : null;
                     segment.nextSegmentId = next ? next.id : null;
-                    segment.previousLabel = previous ? `${previous.flightNumber || '-'} ${previous.orig}-${previous.dest} ${previous.std}` : '-';
-                    segment.nextLabel = next ? `${next.flightNumber || '-'} ${next.orig}-${next.dest} ${next.std}` : '-';
+                    segment.previousLabel = previous ? `${previous.flightNumber || '-'} ${previous.orig}-${previous.dest} ${previous.depReferenceTime || previous.std || previous.origStd || '-'}` : '-';
+                    segment.nextLabel = next ? `${next.flightNumber || '-'} ${next.orig}-${next.dest} ${next.depReferenceTime || next.std || next.origStd || '-'}` : '-';
                     if (next && segment.arrDateTimeISO && next.depDateTimeISO) {
                         segment.groundTimeToNextMinutes = Math.round((new Date(next.depDateTimeISO) - new Date(segment.arrDateTimeISO)) / 60000);
                     }
@@ -757,9 +765,8 @@
             regs.forEach((reg) => {
                 const list = grouped[reg].slice().sort((a, b) => new Date(a.depDateTimeISO) - new Date(b.depDateTimeISO));
                 html += `<div class="ac-block"><div class="ac-title">Matrícula: ${escapeHtml(reg)}</div>`;
-                html += '<table><tr><th>Data</th><th>Voo</th><th>Orig</th><th>Dest</th><th>Fleet</th><th>STD</th><th>STA/ETA</th><th>Atraso Part. (min)</th><th>Atraso Cheg. (min)</th><th>Ground próx. (HH:MM)</th><th>Voo anterior</th><th>Voo sucessor</th><th>Meteo</th></tr>';
+                html += '<table><tr><th>Data</th><th>Voo</th><th>Orig</th><th>Dest</th><th>Fleet</th><th>ETD</th><th>STD</th><th>OrigSTD</th><th>ETA</th><th>STA</th><th>OrigSTA</th><th>Atraso Part. (min)</th><th>Atraso Cheg. (min)</th><th>Ground próx. (HH:MM)</th><th>Voo anterior</th><th>Voo sucessor</th><th>Meteo</th></tr>';
                 list.forEach((segment) => {
-                    const arrRef = segment.eta || segment.sta || '-';
                     const groundFmt = formatGroundTime(segment.groundTimeToNextMinutes);
                     orderedSegments.push(segment);
                     html += `<tr>
@@ -768,8 +775,12 @@
                         <td>${escapeHtml(segment.orig)}</td>
                         <td>${escapeHtml(segment.dest)}</td>
                         <td>${escapeHtml(segment.fleetType || segment.reg || '-')}</td>
+                        <td>${escapeHtml(segment.etd || '-')}</td>
                         <td>${escapeHtml(segment.std || '-')}</td>
-                        <td>${escapeHtml(arrRef)}</td>
+                        <td>${escapeHtml(segment.origStd || '-')}</td>
+                        <td>${escapeHtml(segment.eta || '-')}</td>
+                        <td>${escapeHtml(segment.sta || '-')}</td>
+                        <td>${escapeHtml(segment.origSta || '-')}</td>
                         <td>${segment.depDelayMinutes == null ? '-' : segment.depDelayMinutes}</td>
                         <td>${segment.arrDelayMinutes == null ? '-' : segment.arrDelayMinutes}</td>
                         <td>${escapeHtml(groundFmt)}</td>
@@ -807,7 +818,7 @@
                         _currentFileName = file.name;
                         _selectedDateISO = '';
                         renderCurrentView();
-                        alert('Nenhum voo válido encontrado. Verifique se o arquivo DayRep contém tabela com DATE/REG/DEP/ARR/STD/STA (ou OrgSTD/OrgSTA).');
+                        alert('Nenhum voo válido encontrado. Verifique se o arquivo DayRep contém tabela com DATE/REG/DEP/ARR e horários em STD/STA e/ou OrgSTD/OrgSTA.');
                         return;
                     }
 
