@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>PlaToOut - Análise de Etapas</title>
+    <style>
+        body { font-family: Calibri, sans-serif; margin: 20px; background-color: #f4f6f9; }
+        h2 { color: #117A65; border-bottom: 2px solid #117A65; padding-bottom: 5px; }
+        h3 { color: #117A65; margin-top: 0; }
+        .nav { margin-bottom: 20px; background: #fff; padding: 10px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .nav a { margin-right: 15px; text-decoration: none; color: #2c3e50; font-weight: bold; }
+        .nav a:hover { color: #117A65; }
+        .container { background: #fff; padding: 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .upload-box {
+            border: 2px dashed #117A65;
+            padding: 30px;
+            text-align: center;
+            background: #f0faf7;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        .upload-box input[type="file"] { display: none; }
+        .custom-file-upload {
+            background-color: #117A65;
+            color: white;
+            display: inline-block;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-weight: bold;
+            border-radius: 3px;
+            margin-top: 10px;
+        }
+        .custom-file-upload:hover { background-color: #0e6655; }
+        .file-name { margin-top: 10px; font-weight: bold; color: #2c3e50; font-size: 13px; }
+        .status-message { margin-top: 8px; font-size: 13px; font-weight: bold; }
+        .status-message.success { color: #1e8449; }
+        .status-message.error { color: #c0392b; }
+        .status-message.info { color: #2c3e50; }
+        button {
+            background-color: #117A65;
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            cursor: pointer;
+            font-weight: bold;
+            border-radius: 3px;
+            font-family: Calibri;
+            font-size: 14px;
+        }
+        button:hover { background-color: #0e6655; }
+        .btn-secondary { background-color: #7f8c8d; }
+        .btn-secondary:hover { background-color: #5d6d6f; }
+        .btn-danger { background-color: #E74C3C; }
+        .btn-danger:hover { background-color: #c0392b; }
+        .btn-download { background-color: #2980B9; }
+        .btn-download:hover { background-color: #1f6ea0; }
+        .backup-panel { background: #fff; padding: 16px 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .backup-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+        .filter-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 14px; background: #eafaf5; border: 1px solid #a9dfcf; border-radius: 4px; padding: 10px 14px; }
+        .filter-row label { font-weight: bold; color: #117A65; font-size: 13px; }
+        .filter-row select, .filter-row input[type="text"] {
+            padding: 6px 8px;
+            border-radius: 3px;
+            border: 1px solid #ccc;
+            font-family: Calibri, sans-serif;
+            font-size: 13px;
+            min-width: 100px;
+        }
+        .filter-row button { padding: 6px 12px; font-size: 13px; }
+        .meta { font-size: 13px; color: #555; margin-bottom: 10px; }
+        table { width: 100%; border-collapse: collapse; background: #fff; }
+        th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: center; font-size: 13px; }
+        th { background-color: #117A65; color: white; cursor: pointer; white-space: nowrap; user-select: none; }
+        th:hover { background-color: #0e6655; }
+        th .sort-arrow { margin-left: 5px; font-size: 11px; }
+        tr:nth-child(even) { background-color: #f7fdfb; }
+        tr:hover { background-color: #d5f5e3; }
+        .no-data { color: #7f8c8d; font-style: italic; text-align: center; padding: 20px; }
+        .badge { display: inline-block; background: #117A65; color: white; border-radius: 10px; padding: 2px 10px; font-size: 12px; font-weight: bold; margin-left: 8px; }
+        .section-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+    </style>
+</head>
+<body>
+
+    <div class="nav">
+        <a href="index.html">⏱ Timeline da Malha</a>
+        <a href="restricoes.html">⚠️ Cadastro de Restrições</a>
+        <a href="analise.html">🔍 Análise</a>
+        <a href="lembretes.html">🔔 Eventos e Lembretes</a>
+        <a href="meteo.html">☁️ Configuração Meteo</a>
+        <a href="paises.html">🌍 Países das Bases</a>
+        <a href="platoout.html">✈️ PlaToOut</a>
+    </div>
+
+    <h2>✈️ PlaToOut – Análise de Etapas</h2>
+
+    <!-- UPLOAD -->
+    <div class="container">
+        <h3>📂 Importar arquivo PlaToOut</h3>
+        <div class="upload-box">
+            <div>Arraste ou selecione um arquivo <b>PlaToOut*.txt / PlaToOut*.CLX</b></div>
+            <label class="custom-file-upload" for="platoUpload">Selecionar arquivo</label>
+            <input type="file" id="platoUpload" accept=".txt,.clx,.CLX" onchange="handleFileUpload(event)">
+            <div class="file-name" id="uploadFileName">Nenhum arquivo selecionado</div>
+        </div>
+        <div id="uploadStatus" class="status-message info"></div>
+    </div>
+
+    <!-- BACKUP -->
+    <div class="backup-panel">
+        <h3>💾 Dados históricos (JSON)</h3>
+        <div style="font-size:13px;color:#555;margin-bottom:8px;">Baixe ou restaure o histórico acumulado de todas as importações.</div>
+        <div class="backup-actions">
+            <button type="button" class="btn-download" onclick="downloadJSON()">⬇️ Baixar JSON</button>
+            <button type="button" class="btn-secondary" onclick="document.getElementById('importJson').click()">⬆️ Importar JSON</button>
+            <input type="file" id="importJson" accept="application/json,.json" onchange="importJSON(event)" hidden>
+            <button type="button" class="btn-danger" onclick="clearAllData()">🗑️ Limpar todos os dados</button>
+        </div>
+        <div id="jsonStatus" class="status-message info"></div>
+    </div>
+
+    <!-- TABLE -->
+    <div class="container">
+        <h3>📊 Etapas extraídas <span class="badge" id="recordCount">0</span></h3>
+        <div class="filter-row">
+            <label for="filterOrigem">Origem:</label>
+            <select id="filterOrigem" onchange="renderTable()"><option value="">Todas</option></select>
+            <label for="filterDestino">Destino:</label>
+            <select id="filterDestino" onchange="renderTable()"><option value="">Todos</option></select>
+            <label for="filterMes">Mês:</label>
+            <select id="filterMes" onchange="renderTable()"><option value="">Todos</option></select>
+            <label for="filterAno">Ano:</label>
+            <select id="filterAno" onchange="renderTable()"><option value="">Todos</option></select>
+            <label for="filterSearch">Busca:</label>
+            <input type="text" id="filterSearch" placeholder="Seq, Origem, Destino..." oninput="renderTable()">
+            <button class="btn-secondary" onclick="clearFilters()">Limpar filtros</button>
+        </div>
+        <div class="section-actions">
+            <div class="meta" id="tableMeta"></div>
+        </div>
+        <div style="overflow-x:auto;">
+            <table id="mainTable">
+                <thead>
+                    <tr>
+                        <th onclick="sortBy('seq')" title="Ordenar por Seq">Seq <span class="sort-arrow" id="arr-seq"></span></th>
+                        <th onclick="sortBy('origem')" title="Ordenar por Origem">Origem <span class="sort-arrow" id="arr-origem"></span></th>
+                        <th onclick="sortBy('destino')" title="Ordenar por Destino">Destino <span class="sort-arrow" id="arr-destino"></span></th>
+                        <th onclick="sortBy('tripTime')" title="Ordenar por Trip Time">Trip Time <span class="sort-arrow" id="arr-tripTime"></span></th>
+                        <th onclick="sortBy('data')" title="Ordenar por Data">Data (Run-Date) <span class="sort-arrow" id="arr-data"></span></th>
+                        <th onclick="sortBy('mediaTrip')" title="Ordenar por Média">Média Mensal Trip Time <span class="sort-arrow" id="arr-mediaTrip"></span></th>
+                        <th>Arquivo</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <tr><td colspan="7" class="no-data">Nenhum dado importado.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+<script>
+    const STORAGE_KEY = 'platooutData';
+
+    // ── State ──────────────────────────────────────────────────────────────────
+    let allRecords = [];          // full dataset across uploads
+    let sortField = 'data';
+    let sortAsc = false;
+
+    // ── Persistence ───────────────────────────────────────────────────────────
+    function loadData() {
+        try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            allRecords = raw ? JSON.parse(raw) : [];
+        } catch (e) {
+            allRecords = [];
+        }
+    }
+
+    function saveData() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(allRecords));
+    }
+
+    // ── File upload ───────────────────────────────────────────────────────────
+    function handleFileUpload(evt) {
+        const file = evt.target.files[0];
+        if (!file) return;
+        document.getElementById('uploadFileName').textContent = file.name;
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const text = e.target.result;
+            const extracted = parsePlaToOut(text, file.name);
+            if (extracted.length === 0) {
+                setStatus('uploadStatus', 'error', '⚠️ Nenhuma etapa identificada. Verifique se o arquivo começa com "PlaToOut".');
+                return;
+            }
+            // Merge: avoid duplicate seq+arquivo combinations
+            let added = 0;
+            for (const rec of extracted) {
+                const dup = allRecords.find(r => r.seq === rec.seq && r.arquivo === rec.arquivo && r.data === rec.data);
+                if (!dup) { allRecords.push(rec); added++; }
+            }
+            saveData();
+            setStatus('uploadStatus', 'success', `✅ ${extracted.length} etapa(s) extraída(s) do arquivo. ${added} nova(s) adicionada(s) ao histórico.`);
+            refreshAll();
+        };
+        reader.readAsText(file, 'UTF-8');
+        // Reset input so same file can be re-uploaded if needed
+        evt.target.value = '';
+    }
+
+    // ── PlaToOut parser ───────────────────────────────────────────────────────
+    function parsePlaToOut(text, fileName) {
+        const lines = text.split(/\r?\n/);
+        const records = [];
+
+        for (let i = 0; i < lines.length; i++) {
+            if (!lines[i].startsWith('Sequence No.')) continue;
+
+            // Locate Trip Time and Run-Date rows within the next 60 lines of this block
+            let tripTimeLine = null, runDateLine = null;
+            for (let j = i + 1; j < Math.min(i + 60, lines.length); j++) {
+                if (lines[j].startsWith('Trip Time')) { tripTimeLine = lines[j]; }
+                if (lines[j].startsWith('Run-Date'))  { runDateLine = lines[j]; }
+                if (tripTimeLine && runDateLine) break;
+            }
+
+            const seqCols    = splitCols(lines[i]);
+            const depDestCols = splitCols(lines[i + 2] || '');
+            const tripCols   = tripTimeLine ? splitCols(tripTimeLine) : [];
+            const dateCols   = runDateLine  ? splitCols(runDateLine)  : [];
+
+            // seqCols[0] = 'Sequence No.', seqCols[1..] = sequence numbers
+            for (let j = 1; j < seqCols.length; j++) {
+                const seq      = seqCols[j];
+                const depDest  = depDestCols[j] || '';
+                const tripTime = tripCols[j]  || '';
+                const data     = dateCols[j]  || '';
+
+                if (!seq || !depDest || !depDest.includes('-')) continue;
+
+                const dashIdx = depDest.indexOf('-');
+                const origem  = depDest.substring(0, dashIdx).trim();
+                const destino = depDest.substring(dashIdx + 1).trim();
+
+                records.push({
+                    seq:      seq.trim(),
+                    origem:   origem,
+                    destino:  destino,
+                    tripTime: tripTime.trim(),
+                    data:     data.trim(),
+                    arquivo:  fileName
+                });
+            }
+        }
+
+        return records;
+    }
+
+    // Split a pipe-delimited line into trimmed tokens
+    function splitCols(line) {
+        return line.split('|').map(s => s.trim());
+    }
+
+    // ── Monthly average helpers ───────────────────────────────────────────────
+    // Trip Time format: "HH:MM"  → minutes
+    function ttToMinutes(tt) {
+        const m = tt.match(/^(\d+):(\d{2})$/);
+        if (!m) return null;
+        return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+    }
+
+    function minutesToTT(mins) {
+        const h = Math.floor(mins / 60);
+        const m = Math.round(mins % 60);
+        return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+    }
+
+    // Run-Date format: "DD.MM.YY"  → "MM/YY" key
+    function monthKey(dateStr) {
+        const p = dateStr.split('.');
+        if (p.length < 3) return null;
+        return `${p[1]}/${p[2]}`; // MM/YY
+    }
+
+    function buildMonthlyAverages() {
+        // key: origem-destino-MM/YY → array of minutes
+        const map = {};
+        for (const r of allRecords) {
+            const mk = monthKey(r.data);
+            if (!mk) continue;
+            const mins = ttToMinutes(r.tripTime);
+            if (mins === null) continue;
+            const key = `${r.origem}|${r.destino}|${mk}`;
+            if (!map[key]) map[key] = [];
+            map[key].push(mins);
+        }
+        const avg = {};
+        for (const [k, vals] of Object.entries(map)) {
+            avg[k] = Math.round(vals.reduce((a,b) => a+b, 0) / vals.length);
+        }
+        return avg;
+    }
+
+    // ── Filter & Sort ─────────────────────────────────────────────────────────
+    function getFiltered() {
+        const fOrigem  = document.getElementById('filterOrigem').value;
+        const fDestino = document.getElementById('filterDestino').value;
+        const fMes     = document.getElementById('filterMes').value;
+        const fAno     = document.getElementById('filterAno').value;
+        const fSearch  = document.getElementById('filterSearch').value.toLowerCase().trim();
+
+        return allRecords.filter(r => {
+            if (fOrigem  && r.origem   !== fOrigem)  return false;
+            if (fDestino && r.destino  !== fDestino) return false;
+            if (fMes) {
+                const p = r.data.split('.'); if (p[1] !== fMes) return false;
+            }
+            if (fAno) {
+                const p = r.data.split('.'); if (p[2] !== fAno) return false;
+            }
+            if (fSearch) {
+                const haystack = `${r.seq} ${r.origem} ${r.destino} ${r.tripTime} ${r.data} ${r.arquivo}`.toLowerCase();
+                if (!haystack.includes(fSearch)) return false;
+            }
+            return true;
+        });
+    }
+
+    function sortBy(field) {
+        if (sortField === field) {
+            sortAsc = !sortAsc;
+        } else {
+            sortField = field;
+            sortAsc = true;
+        }
+        renderTable();
+    }
+
+    function sortRecords(records) {
+        return [...records].sort((a, b) => {
+            let va = a[sortField] || '';
+            let vb = b[sortField] || '';
+            if (sortField === 'seq') {
+                va = parseInt(va, 10) || 0;
+                vb = parseInt(vb, 10) || 0;
+                return sortAsc ? va - vb : vb - va;
+            }
+            if (sortField === 'data') {
+                // DD.MM.YY → YY.MM.DD for comparison
+                const fmtDate = s => { const p = s.split('.'); return p.length===3 ? `${p[2]}${p[1]}${p[0]}` : s; };
+                va = fmtDate(va); vb = fmtDate(vb);
+            }
+            if (sortField === 'tripTime' || sortField === 'mediaTrip') {
+                va = ttToMinutes(va) ?? -1;
+                vb = ttToMinutes(vb) ?? -1;
+                return sortAsc ? va - vb : vb - va;
+            }
+            if (va < vb) return sortAsc ? -1 : 1;
+            if (va > vb) return sortAsc ? 1 : -1;
+            return 0;
+        });
+    }
+
+    // ── Render ────────────────────────────────────────────────────────────────
+    function refreshAll() {
+        populateFilters();
+        renderTable();
+    }
+
+    function populateFilters() {
+        const origens  = [...new Set(allRecords.map(r => r.origem))].sort();
+        const destinos = [...new Set(allRecords.map(r => r.destino))].sort();
+        const meses    = [...new Set(allRecords.map(r => { const p=r.data.split('.'); return p[1]||''; }).filter(Boolean))].sort();
+        const anos     = [...new Set(allRecords.map(r => { const p=r.data.split('.'); return p[2]||''; }).filter(Boolean))].sort();
+
+        setSelectOptions('filterOrigem',  origens,  'Todas');
+        setSelectOptions('filterDestino', destinos, 'Todos');
+        setSelectOptions('filterMes',     meses,    'Todos');
+        setSelectOptions('filterAno',     anos,     'Todos');
+    }
+
+    function setSelectOptions(id, values, placeholder) {
+        const sel = document.getElementById(id);
+        const prev = sel.value;
+        sel.innerHTML = `<option value="">${placeholder}</option>`;
+        values.forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v; opt.textContent = v;
+            sel.appendChild(opt);
+        });
+        if (values.includes(prev)) sel.value = prev;
+    }
+
+    function renderTable() {
+        const avgs    = buildMonthlyAverages();
+        const filtered = getFiltered();
+        const sorted   = sortRecords(filtered.map(r => {
+            const mk  = monthKey(r.data);
+            const key = `${r.origem}|${r.destino}|${mk}`;
+            return { ...r, mediaTrip: mk && avgs[key] ? minutesToTT(avgs[key]) : '' };
+        }));
+
+        document.getElementById('recordCount').textContent = allRecords.length;
+        document.getElementById('tableMeta').textContent =
+            `Exibindo ${sorted.length} de ${allRecords.length} registro(s).`;
+
+        // Update sort arrows
+        ['seq','origem','destino','tripTime','data','mediaTrip'].forEach(f => {
+            const el = document.getElementById(`arr-${f}`);
+            if (el) el.textContent = sortField===f ? (sortAsc ? '▲' : '▼') : '';
+        });
+
+        const tbody = document.getElementById('tableBody');
+        if (sorted.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="no-data">Nenhum registro encontrado com os filtros aplicados.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = sorted.map(r => `
+            <tr>
+                <td>${escHtml(r.seq)}</td>
+                <td>${escHtml(r.origem)}</td>
+                <td>${escHtml(r.destino)}</td>
+                <td>${escHtml(r.tripTime)}</td>
+                <td>${escHtml(r.data)}</td>
+                <td>${escHtml(r.mediaTrip)}</td>
+                <td style="font-size:11px;color:#666;">${escHtml(r.arquivo)}</td>
+            </tr>`).join('');
+    }
+
+    function escHtml(s) {
+        if (!s) return '';
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    // ── JSON backup ───────────────────────────────────────────────────────────
+    function downloadJSON() {
+        if (allRecords.length === 0) {
+            setStatus('jsonStatus', 'error', '⚠️ Nenhum dado para exportar.');
+            return;
+        }
+        const blob = new Blob([JSON.stringify(allRecords, null, 2)], { type: 'application/json' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        const ts   = new Date().toISOString().slice(0,10).replace(/-/g,'');
+        a.href = url; a.download = `platoout_historico_${ts}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        setStatus('jsonStatus', 'success', `✅ ${allRecords.length} registro(s) exportado(s).`);
+    }
+
+    function importJSON(evt) {
+        const file = evt.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            try {
+                const imported = JSON.parse(e.target.result);
+                if (!Array.isArray(imported)) throw new Error('Formato inválido.');
+                let added = 0;
+                for (const rec of imported) {
+                    if (!rec.seq || !rec.origem || !rec.destino) continue;
+                    const dup = allRecords.find(r => r.seq===rec.seq && r.arquivo===rec.arquivo && r.data===rec.data);
+                    if (!dup) { allRecords.push(rec); added++; }
+                }
+                saveData();
+                setStatus('jsonStatus', 'success', `✅ ${added} novo(s) registro(s) importado(s) de ${imported.length} no arquivo.`);
+                refreshAll();
+            } catch (err) {
+                setStatus('jsonStatus', 'error', `❌ Erro ao importar: ${err.message}`);
+            }
+        };
+        reader.readAsText(file, 'UTF-8');
+        evt.target.value = '';
+    }
+
+    // ── Utilities ─────────────────────────────────────────────────────────────
+    function clearFilters() {
+        document.getElementById('filterOrigem').value  = '';
+        document.getElementById('filterDestino').value = '';
+        document.getElementById('filterMes').value     = '';
+        document.getElementById('filterAno').value     = '';
+        document.getElementById('filterSearch').value  = '';
+        renderTable();
+    }
+
+    function clearAllData() {
+        if (!confirm('Apagar todos os dados históricos? Esta ação não pode ser desfeita.')) return;
+        allRecords = [];
+        saveData();
+        setStatus('jsonStatus', 'info', 'Todos os dados foram apagados.');
+        refreshAll();
+    }
+
+    function setStatus(id, type, msg) {
+        const el = document.getElementById(id);
+        el.className = `status-message ${type}`;
+        el.textContent = msg;
+    }
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+    loadData();
+    refreshAll();
+</script>
+</body>
+</html>
