@@ -433,12 +433,12 @@
                 const label = dateISO !== 'sem-data' ? formatDateLabel(dateISO) : 'Sem data';
                 return `<div class="gcm-day-row">
                     <span class="gcm-day-label">${escapeHtml(label)}</span>
-                    <a class="gcm-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(routes)}</a>
+                    <a class="gcm-link" href="${url}" target="_blank" rel="noopener noreferrer">${escapeHtml(routes)}</a>
                 </div>`;
             }).join('');
         }
 
-                function renderCurrentView() {
+        function renderCurrentView() {
             updateDateFilterControls();
             const filteredSegments = getFilteredSegments();
             renderRouteMap(filteredSegments);
