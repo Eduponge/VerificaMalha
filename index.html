@@ -66,55 +66,22 @@
         }
         .filter-row button:hover { background: #5d6d6f; }
         .filter-summary { margin-top: 8px; font-size: 13px; color: #444; }
-        .map-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
-        .map-header h3 { margin: 0; color: #2c3e50; }
-        .map-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: #444; }
-        .legend-item { display: inline-flex; align-items: center; gap: 6px; }
-        .legend-line, .legend-dot {
-            display: inline-block;
-            vertical-align: middle;
-        }
-        .legend-dot { width: 10px; height: 10px; border-radius: 50%; background: #E74C3C; }
-        .map-origin-legend { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; }
-        .map-origin-legend-item { display: inline-flex; align-items: center; gap: 5px; background: #f4f8fb; border: 1px solid #d6eaf8; border-radius: 10px; padding: 2px 8px; }
-        .map-origin-legend-item .origin-swatch { display: inline-block; width: 18px; height: 3px; border-radius: 2px; }
-        .map-zoom-bar { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
-        .map-zoom-bar button {
-            background: #2c3e50; color: #fff; border: none; border-radius: 4px;
-            padding: 4px 12px; font-size: 16px; cursor: pointer; font-weight: bold; line-height: 1;
-        }
-        .map-zoom-bar button:hover { background: #1a252f; }
-        .map-zoom-bar .zoom-label { font-size: 12px; color: #666; }
-        .map-svg-wrap {
-            width: 100%;
-            overflow: hidden;
-            border: 1px solid #d6eaf8;
-            border-radius: 4px;
-            background: #c9e8f5;
-            cursor: grab;
-            user-select: none;
-        }
-        .map-svg-wrap.panning { cursor: grabbing; }
-        .map-svg-wrap svg { display: block; width: 100%; height: auto; min-width: 960px; touch-action: none; }
-        .missing-bases {
-            margin-top: 12px;
-            padding: 10px 12px;
-            background: #fef5e7;
-            border-left: 4px solid #f39c12;
-            border-radius: 3px;
+        .map-header { margin-bottom: 10px; }
+        .map-header h3 { margin: 0 0 4px 0; color: #2c3e50; }
+        .gcm-day-list { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+        .gcm-day-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .gcm-day-label { font-weight: bold; color: #2c3e50; min-width: 90px; font-size: 13px; }
+        .gcm-link {
+            color: #1a6fa8;
             font-size: 13px;
-            color: #7d6608;
+            text-decoration: none;
+            background: #eaf4fb;
+            border: 1px solid #aad4ed;
+            border-radius: 4px;
+            padding: 3px 10px;
+            word-break: break-all;
         }
-        .missing-bases strong { color: #935116; }
-        .missing-bases-list { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
-        .base-pill {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 10px;
-            background: #fdebd0;
-            border: 1px solid #f5cba7;
-            font-size: 12px;
-        }
+        .gcm-link:hover { background: #d0eaf8; text-decoration: underline; }
     </style>
 </head>
 <body>
@@ -155,27 +122,10 @@
 
         <div class="map-panel" id="mapPanel" style="display:none;">
             <div class="map-header">
-                <div>
-                    <h3>🌍 Mapa das Etapas</h3>
-                    <div class="small">Projeção equiretangular (90°N/90°S e 180°W/180°E). Arraste para navegar.</div>
-                </div>
-                <div class="map-legend">
-                    <span class="legend-item"><span class="legend-dot"></span> Base com coordenadas</span>
-                </div>
+                <h3>🌍 Mapa das Etapas (GreatCircleMap)</h3>
+                <div class="small">Links para visualização das rotas por dia no GreatCircleMap. Clique para abrir.</div>
             </div>
-            <div class="map-origin-legend" id="mapOriginLegend"></div>
-            <div class="small" id="mapSummary" style="margin-top:6px;"></div>
-            <div class="map-zoom-bar">
-                <button type="button" onclick="mapZoom(1.3)" title="Zoom in">＋</button>
-                <button type="button" onclick="mapZoom(1/1.3)" title="Zoom out">－</button>
-                <button type="button" onclick="mapResetView()" title="Resetar zoom" style="font-size:13px;padding:4px 10px;">⟳ Reset</button>
-                <span class="zoom-label" id="mapZoomLabel"></span>
-            </div>
-            <div class="map-svg-wrap" id="mapSvgWrap"></div>
-            <div class="missing-bases" id="missingBasesBox" style="display:none;">
-                <strong>Bases sem coordenadas em meteo.html:</strong>
-                <div class="missing-bases-list" id="missingBasesList"></div>
-            </div>
+            <div class="gcm-day-list" id="gcmDayList"></div>
         </div>
 
         <div class="timeline-container" id="timelineOutput"></div>
@@ -398,15 +348,7 @@
             return `${mins < 0 ? '-' : ''}${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} (${mins} min)`;
         }
 
-        const WORLD_LANDMASSES = [
-            [[-167,72],[-145,70],[-130,55],[-125,48],[-117,33],[-106,25],[-98,18],[-90,19],[-84,25],[-80,31],[-76,39],[-68,45],[-60,52],[-60,60],[-75,73],[-110,74]],
-            [[-82,12],[-76,8],[-73,-3],[-70,-12],[-65,-20],[-61,-32],[-58,-42],[-62,-52],[-73,-55],[-79,-44],[-81,-27],[-78,-10]],
-            [[-52,80],[-38,76],[-28,70],[-34,61],[-48,60],[-58,67]],
-            [[-10,36],[0,44],[10,50],[22,58],[40,60],[58,58],[72,55],[88,55],[105,50],[118,42],[130,35],[138,25],[135,12],[118,8],[108,2],[92,8],[78,20],[64,24],[55,30],[40,35],[30,45],[16,46],[8,43],[2,38]],
-            [[-18,34],[-6,36],[10,34],[20,27],[28,15],[33,4],[35,-10],[30,-22],[24,-30],[18,-35],[8,-34],[0,-28],[-8,-10],[-14,5],[-16,20]],
-            [[110,-10],[118,-18],[130,-20],[140,-25],[151,-34],[146,-41],[132,-39],[120,-34],[113,-26]],
-            [[47,-13],[50,-16],[48,-22],[44,-25],[42,-19]]
-        ];
+
 
         let _allSegments = [];
         let _currentFileName = 'DayRep';
@@ -464,278 +406,39 @@
             renderCurrentView();
         }
 
-        function projectLonLat(lon, lat, width, height) {
-            return {
-                x: ((lon + 180) / 360) * width,
-                y: ((90 - lat) / 180) * height
-            };
-        }
-
-        function buildWrappedRouteSegments(origCoord, destCoord) {
-            const diff = destCoord.lon - origCoord.lon;
-            if (Math.abs(diff) <= 180) {
-                return [[origCoord, destCoord]];
-            }
-
-            const adjustedDestLon = diff > 180 ? destCoord.lon - 360 : destCoord.lon + 360;
-            const boundary = diff > 180 ? -180 : 180;
-            const t = (boundary - origCoord.lon) / (adjustedDestLon - origCoord.lon);
-            const crossLat = origCoord.lat + (destCoord.lat - origCoord.lat) * t;
-
-            return [
-                [origCoord, { lat: crossLat, lon: boundary }],
-                [{ lat: crossLat, lon: -boundary }, destCoord]
-            ];
-        }
-
         function renderRouteMap(segments) {
             const panel = document.getElementById('mapPanel');
-            const mapWrap = document.getElementById('mapSvgWrap');
-            const mapSummary = document.getElementById('mapSummary');
-            const missingBox = document.getElementById('missingBasesBox');
-            const missingList = document.getElementById('missingBasesList');
-            const originLegend = document.getElementById('mapOriginLegend');
+            const dayList = document.getElementById('gcmDayList');
 
-            if (!_allSegments.length) {
+            if (!segments.length) {
                 panel.style.display = 'none';
-                mapWrap.innerHTML = '';
-                mapSummary.textContent = '';
-                missingBox.style.display = 'none';
-                missingList.innerHTML = '';
-                originLegend.innerHTML = '';
+                dayList.innerHTML = '';
                 return;
             }
 
             panel.style.display = 'block';
 
-            const cfg = getWxConfig();
-            const bases = cfg.bases || {};
-            const width = 1200;
-            const height = 540;
-            const missingBases = new Set();
-            const plottedBases = new Map();
-
-            // Paleta de cores distinguíveis para origens
-            const ORIGIN_COLORS = [
-                '#E74C3C','#2980B9','#27AE60','#F39C12','#8E44AD',
-                '#16A085','#D35400','#2C3E50','#C0392B','#1ABC9C',
-                '#F1C40F','#7F8C8D','#6C3483','#148F77','#B7950B'
-            ];
-            const originList = [...new Set(segments.map((s) => s.orig))].filter((o) => bases[o]);
-            const originColorMap = {};
-            originList.forEach((orig, i) => {
-                originColorMap[orig] = ORIGIN_COLORS[i % ORIGIN_COLORS.length];
-            });
-
-            // Construir linhas de rota coloridas por origem
-            const routeLines = [];
+            // Group routes by day
+            const byDay = {};
             segments.forEach((segment) => {
-                const origCoord = bases[segment.orig];
-                const destCoord = bases[segment.dest];
-                if (!origCoord) missingBases.add(segment.orig);
-                if (!destCoord) missingBases.add(segment.dest);
-                if (!origCoord || !destCoord) return;
-
-                plottedBases.set(segment.orig, origCoord);
-                plottedBases.set(segment.dest, destCoord);
-                const color = originColorMap[segment.orig] || '#3498DB';
-                buildWrappedRouteSegments(origCoord, destCoord).forEach(([start, end]) => {
-                    const startPoint = projectLonLat(start.lon, start.lat, width, height);
-                    const endPoint = projectLonLat(end.lon, end.lat, width, height);
-                    routeLines.push(`<line x1="${startPoint.x.toFixed(2)}" y1="${startPoint.y.toFixed(2)}" x2="${endPoint.x.toFixed(2)}" y2="${endPoint.y.toFixed(2)}" stroke="${escapeHtml(color)}" stroke-width="2.4" stroke-linecap="round" opacity="0.82" />`);
-                });
+                const key = segment.dateISO || 'sem-data';
+                if (!byDay[key]) byDay[key] = [];
+                byDay[key].push(`${segment.orig}-${segment.dest}`);
             });
 
-            // Grade
-            const gridLines = [];
-            for (let lon = -180; lon <= 180; lon += 60) {
-                const point = projectLonLat(lon, 0, width, height);
-                gridLines.push(`<line x1="${point.x.toFixed(2)}" y1="0" x2="${point.x.toFixed(2)}" y2="${height}" stroke="#a8d4e8" stroke-width="${lon === 0 ? 1.5 : 1}" opacity="${lon === 0 ? 0.9 : 0.6}" />`);
-                if (lon < 180) {
-                    gridLines.push(`<text x="${(point.x + 4).toFixed(2)}" y="${height - 8}" fill="#4a6a7a" font-size="11">${lon}°</text>`);
-                }
-            }
-            for (let lat = -60; lat <= 60; lat += 30) {
-                const point = projectLonLat(0, lat, width, height);
-                gridLines.push(`<line x1="0" y1="${point.y.toFixed(2)}" x2="${width}" y2="${point.y.toFixed(2)}" stroke="#a8d4e8" stroke-width="${lat === 0 ? 1.5 : 1}" opacity="${lat === 0 ? 0.9 : 0.6}" />`);
-                gridLines.push(`<text x="6" y="${(point.y - 4).toFixed(2)}" fill="#4a6a7a" font-size="11">${lat}°</text>`);
-            }
-
-            const land = WORLD_LANDMASSES.map((polygon) => {
-                const points = polygon
-                    .map(([lon, lat]) => {
-                        const point = projectLonLat(lon, lat, width, height);
-                        return `${point.x.toFixed(2)},${point.y.toFixed(2)}`;
-                    })
-                    .join(' ');
-                return `<polygon points="${points}" fill="#d4e6c3" stroke="#8fac7e" stroke-width="0.8" opacity="0.97"></polygon>`;
+            const sortedDays = Object.keys(byDay).sort();
+            dayList.innerHTML = sortedDays.map((dateISO) => {
+                const routes = byDay[dateISO].join(',');
+                const url = `https://www.greatcirclemap.com/?label=iata&routes=${encodeURIComponent(routes)}&unit=nm`;
+                const label = dateISO !== 'sem-data' ? formatDateLabel(dateISO) : 'Sem data';
+                return `<div class="gcm-day-row">
+                    <span class="gcm-day-label">${escapeHtml(label)}</span>
+                    <a class="gcm-link" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(routes)}</a>
+                </div>`;
             }).join('');
-
-            const basePoints = [...plottedBases.entries()].map(([code, coord]) => {
-                const point = projectLonLat(coord.lon, coord.lat, width, height);
-                const labelX = Math.min(width - 38, point.x + 7);
-                const labelY = Math.max(12, point.y - 7);
-                const isOrigin = Boolean(originColorMap[code]);
-                const dotColor = isOrigin ? originColorMap[code] : '#E74C3C';
-                return `
-                    <circle cx="${point.x.toFixed(2)}" cy="${point.y.toFixed(2)}" r="${isOrigin ? 6 : 4.5}" fill="${escapeHtml(dotColor)}" stroke="#ffffff" stroke-width="1.8"></circle>
-                    <text x="${labelX.toFixed(2)}" y="${labelY.toFixed(2)}" fill="#1f2d3d" font-size="11" font-weight="bold">${escapeHtml(code)}</text>
-                `;
-            }).join('');
-
-            mapWrap.innerHTML = `
-                <svg id="mapSvg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Mapa das etapas de voo" style="display:block;width:100%;height:auto;min-width:960px;touch-action:none;">
-                    <rect x="0" y="0" width="${width}" height="${height}" fill="#c9e8f5"></rect>
-                    ${gridLines.join('')}
-                    ${land}
-                    ${routeLines.join('')}
-                    ${basePoints}
-                    <rect x="0.5" y="0.5" width="${width - 1}" height="${height - 1}" fill="none" stroke="#5a9cbd" stroke-width="1.5"></rect>
-                    <text x="10" y="18" fill="#2c3e50" font-size="12" font-weight="bold">90°N</text>
-                    <text x="10" y="${height - 10}" fill="#2c3e50" font-size="12" font-weight="bold">90°S</text>
-                    <text x="10" y="${(height / 2 + 16).toFixed(2)}" fill="#2c3e50" font-size="12" font-weight="bold">0°</text>
-                    <text x="10" y="${(height / 2 + 32).toFixed(2)}" fill="#2c3e50" font-size="11">180°W → 180°E</text>
-                </svg>
-            `;
-
-            // Legenda de origens
-            if (originList.length) {
-                originLegend.innerHTML = originList.map((orig) =>
-                    `<span class="map-origin-legend-item"><span class="origin-swatch" style="background:${escapeHtml(originColorMap[orig])};"></span>${escapeHtml(orig)}</span>`
-                ).join('');
-            } else {
-                originLegend.innerHTML = '';
-            }
-
-            mapSummary.textContent = `Etapas exibidas: ${segments.length}. Etapas desenhadas: ${segments.filter((segment) => bases[segment.orig] && bases[segment.dest]).length}. Bases plotadas: ${plottedBases.size}.`;
-
-            const missing = [...missingBases].filter(Boolean).sort();
-            if (missing.length) {
-                missingBox.style.display = 'block';
-                missingList.innerHTML = missing.map((base) => `<span class="base-pill">${escapeHtml(base)}</span>`).join('');
-            } else {
-                missingBox.style.display = 'none';
-                missingList.innerHTML = '';
-            }
-
-            // Inicializar zoom/pan após renderizar SVG
-            initMapInteraction();
         }
 
-        // --- Zoom e Pan do mapa ---
-        let _mapViewBox = null; // { x, y, w, h }
-
-        function _getMapSvg() { return document.getElementById('mapSvg'); }
-
-        function _parseViewBox(svg) {
-            const vb = svg.getAttribute('viewBox').split(' ').map(Number);
-            return { x: vb[0], y: vb[1], w: vb[2], h: vb[3] };
-        }
-
-        function _applyViewBox(svg, vb) {
-            svg.setAttribute('viewBox', `${vb.x.toFixed(2)} ${vb.y.toFixed(2)} ${vb.w.toFixed(2)} ${vb.h.toFixed(2)}`);
-            _mapViewBox = vb;
-            _updateZoomLabel();
-        }
-
-        function _updateZoomLabel() {
-            const svg = _getMapSvg();
-            if (!svg) return;
-            const origW = 1200;
-            const vb = _parseViewBox(svg);
-            const zoom = (origW / vb.w * 100).toFixed(0);
-            const lbl = document.getElementById('mapZoomLabel');
-            if (lbl) lbl.textContent = `Zoom: ${zoom}%`;
-        }
-
-        function mapZoom(factor) {
-            const svg = _getMapSvg();
-            if (!svg) return;
-            const vb = _parseViewBox(svg);
-            const origW = 1200, origH = 540;
-            const newW = Math.max(origW * 0.15, Math.min(origW * 4, vb.w / factor));
-            const newH = newW * (origH / origW);
-            const cx = vb.x + vb.w / 2;
-            const cy = vb.y + vb.h / 2;
-            const newX = Math.max(-origW, Math.min(origW, cx - newW / 2));
-            const newY = Math.max(-origH, Math.min(origH, cy - newH / 2));
-            _applyViewBox(svg, { x: newX, y: newY, w: newW, h: newH });
-        }
-
-        function mapResetView() {
-            const svg = _getMapSvg();
-            if (!svg) return;
-            _applyViewBox(svg, { x: 0, y: 0, w: 1200, h: 540 });
-        }
-
-        function initMapInteraction() {
-            const mapWrap = document.getElementById('mapSvgWrap');
-            const svg = _getMapSvg();
-            if (!mapWrap || !svg) return;
-            _updateZoomLabel();
-
-            let isPanning = false;
-            let startX = 0, startY = 0;
-            let startVB = null;
-
-            function svgCoordsFromEvent(e) {
-                const rect = svg.getBoundingClientRect();
-                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-                const vb = _parseViewBox(svg);
-                return {
-                    x: ((clientX - rect.left) / rect.width) * vb.w + vb.x,
-                    y: ((clientY - rect.top) / rect.height) * vb.h + vb.y
-                };
-            }
-
-            // Remove listeners antigos clonando o elemento
-            const newWrap = mapWrap.cloneNode(false);
-            while (mapWrap.firstChild) newWrap.appendChild(mapWrap.firstChild);
-            mapWrap.parentNode.replaceChild(newWrap, mapWrap);
-            const wrap = newWrap;
-            const svgEl = document.getElementById('mapSvg');
-
-            function onPointerDown(e) {
-                isPanning = true;
-                wrap.classList.add('panning');
-                const pos = svgCoordsFromEvent(e);
-                startX = pos.x;
-                startY = pos.y;
-                startVB = _parseViewBox(svgEl);
-                e.preventDefault();
-            }
-            function onPointerMove(e) {
-                if (!isPanning) return;
-                const pos = svgCoordsFromEvent(e);
-                const dx = startX - pos.x;
-                const dy = startY - pos.y;
-                const origW = 1200, origH = 540;
-                const newX = Math.max(-origW, Math.min(origW, startVB.x + dx));
-                const newY = Math.max(-origH, Math.min(origH, startVB.y + dy));
-                _applyViewBox(svgEl, { x: newX, y: newY, w: startVB.w, h: startVB.h });
-                e.preventDefault();
-            }
-            function onPointerUp() {
-                isPanning = false;
-                wrap.classList.remove('panning');
-            }
-
-            wrap.addEventListener('mousedown', onPointerDown);
-            window.addEventListener('mousemove', onPointerMove);
-            window.addEventListener('mouseup', onPointerUp);
-            wrap.addEventListener('touchstart', onPointerDown, { passive: false });
-            window.addEventListener('touchmove', onPointerMove, { passive: false });
-            window.addEventListener('touchend', onPointerUp);
-
-            // Zoom com scroll do mouse
-            wrap.addEventListener('wheel', (e) => {
-                e.preventDefault();
-                mapZoom(e.deltaY < 0 ? 1.15 : 1 / 1.15);
-            }, { passive: false });
-        }
-
-        function renderCurrentView() {
+                function renderCurrentView() {
             updateDateFilterControls();
             const filteredSegments = getFilteredSegments();
             renderRouteMap(filteredSegments);
