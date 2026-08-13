@@ -419,10 +419,9 @@
             panel.style.display = 'block';
 
             const mapCodeForGreatCircleLink = (code) => {
-                const normalizedCode = norm(code).toUpperCase();
-                if (normalizedCode === 'NLU') return 'MEX';
-                if (normalizedCode === 'NQZ') return 'KGF';
-                return normalizedCode;
+                if (code === 'NLU') return 'MEX';
+                if (code === 'NQZ') return 'KGF';
+                return code;
             };
 
             // Group routes by day
