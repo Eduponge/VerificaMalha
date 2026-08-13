@@ -418,22 +418,32 @@
 
             panel.style.display = 'block';
 
+            const mapCodeForGreatCircleLink = (code) => {
+                if (code === 'NLU') return 'MEX';
+                if (code === 'NQZ') return 'KGF';
+                return code;
+            };
+
             // Group routes by day
             const byDay = {};
             segments.forEach((segment) => {
                 const key = segment.dateISO || 'sem-data';
                 if (!byDay[key]) byDay[key] = [];
-                byDay[key].push(`${segment.orig}-${segment.dest}`);
+                byDay[key].push({
+                    display: `${segment.orig}-${segment.dest}`,
+                    link: `${mapCodeForGreatCircleLink(segment.orig)}-${mapCodeForGreatCircleLink(segment.dest)}`
+                });
             });
 
             const sortedDays = Object.keys(byDay).sort();
             dayList.innerHTML = sortedDays.map((dateISO) => {
-                const routes = byDay[dateISO].join(',');
-                const url = `https://www.greatcirclemap.com/?label=iata&routes=${encodeURIComponent(routes)}&unit=nm`;
+                const displayRoutes = byDay[dateISO].map((route) => route.display).join(',');
+                const linkRoutes = byDay[dateISO].map((route) => route.link).join(',');
+                const url = `https://www.greatcirclemap.com/?label=iata&routes=${encodeURIComponent(linkRoutes)}&unit=nm`;
                 const label = dateISO !== 'sem-data' ? formatDateLabel(dateISO) : 'Sem data';
                 return `<div class="gcm-day-row">
                     <span class="gcm-day-label">${escapeHtml(label)}</span>
-                    <a class="gcm-link" href="${url}" target="_blank" rel="noopener noreferrer">${escapeHtml(routes)}</a>
+                    <a class="gcm-link" href="${url}" target="_blank" rel="noopener noreferrer">${escapeHtml(displayRoutes)}</a>
                 </div>`;
             }).join('');
         }
