@@ -242,12 +242,18 @@ function parseAndRender(rawText) {
     const rows = [];
     const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
-    // Regex: flight (4 digits) | DEP (3 alpha) | ARR (3 alpha) | STD (4 dig) | STA (4 dig) | Of (1 dig) | Tp | St | FC | Callsign
-    // We'll use a flexible regex that handles OCR noise
-    const lineRe = /(\d{4})\s+([A-Z]{3})\s+([A-Z]{3})\s+(\d{4})\s+(\d{4})\s+(\d)\s+([A-Z]{1,2})\s*([A-Z0-9]{0,3})\s*([A-Z0-9]{0,3})\s*(CLX\S*)?/i;
+    // Regex: flight (4 digits) | DEP (3 alpha) | ARR (3 alpha) | STD (4 dig) | STA (4 dig) | Of (1 dig) | Tp | St (letters only) | FC (letters only) | Callsign
+    // St and FC are letters-only to avoid consuming the callsign (CLX...) which contains digits.
+    // Callsign is greedy at end of line.
+    const lineRe = /(\d{4})\s+([A-Z]{3})\s+([A-Z]{3})\s+(\d{4})\s+(\d{4})\s+(\d)\s+([A-Z]{1,2})\s+([A-Z]{0,3})\s+([A-Z]{0,3})\s+(CLX[A-Z0-9]+)/i;
 
     for (const line of lines) {
-        const m = line.match(lineRe);
+        // Try strict match first (all columns present including callsign)
+        let m = line.match(lineRe);
+        if (!m) {
+            // Relaxed match: callsign may be missing; St/FC optional
+            m = line.match(/(\d{4})\s+([A-Z]{3})\s+([A-Z]{3})\s+(\d{4})\s+(\d{4})\s+(\d)\s+([A-Z]{1,2})(?:\s+([A-Z]{0,3}))?(?:\s+([A-Z]{0,3}))?(?:\s+(CLX[A-Z0-9]+))?/i);
+        }
         if (m) {
             rows.push({
                 flight: m[1],
@@ -308,11 +314,19 @@ function parseFallback(lines, rows) {
         idx++;
         const tp = (tokens[idx] || '').replace(/[^A-Z]/gi, '').toUpperCase();
         idx++;
-        const st = (tokens[idx] || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
-        idx++;
-        const fc = (tokens[idx] || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
-        idx++;
-        const callsign = tokens.slice(idx).join('').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+
+        // Remaining tokens after Tp: identify callsign (starts with CLX) and letters-only St/FC
+        const remaining = tokens.slice(idx);
+        let callsign = '';
+        const clxIdx = remaining.findIndex(t => /^CLX/i.test(t));
+        if (clxIdx >= 0) {
+            callsign = remaining[clxIdx].toUpperCase();
+            remaining.splice(clxIdx, 1);
+        }
+        // Remaining non-CLX tokens (letters only) are St and FC
+        const extraLetters = remaining.filter(t => /^[A-Z]+$/i.test(t));
+        const st = (extraLetters[0] || '').toUpperCase();
+        const fc = (extraLetters[1] || '').toUpperCase();
 
         if (dep.length === 3 && arr.length === 3 && stdRaw.length === 4 && staRaw.length === 4) {
             rows.push({
