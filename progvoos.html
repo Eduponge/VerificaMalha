@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Programação de Voos - Revised Schedule</title>
+    <style>
+        body { font-family: Calibri, sans-serif; margin: 20px; background-color: #f4f6f9; }
+        h2 { color: #6C3483; border-bottom: 2px solid #6C3483; padding-bottom: 5px; }
+        .nav { margin-bottom: 20px; background: #fff; padding: 10px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .nav a { margin-right: 15px; text-decoration: none; color: #2c3e50; font-weight: bold; }
+        .nav a:hover { color: #6C3483; }
+        .container { background: #fff; padding: 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .upload-box {
+            border: 2px dashed #6C3483;
+            padding: 30px;
+            text-align: center;
+            background: #faf6fd;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .upload-box input[type="file"] { display: none; }
+        .custom-file-upload {
+            background-color: #6C3483;
+            color: white;
+            display: inline-block;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-weight: bold;
+            border-radius: 3px;
+            margin-top: 10px;
+        }
+        .custom-file-upload:hover { background-color: #5b2c6f; }
+        .file-name { margin-top: 10px; font-weight: bold; color: #2c3e50; font-size: 13px; }
+        .status-message { margin-top: 8px; font-size: 13px; font-weight: bold; }
+        .status-message.success { color: #1e8449; }
+        .status-message.error { color: #c0392b; }
+        .status-message.info { color: #2c3e50; }
+        button {
+            background-color: #6C3483;
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            cursor: pointer;
+            font-weight: bold;
+            border-radius: 3px;
+            font-family: Calibri;
+            font-size: 14px;
+        }
+        button:hover { background-color: #5b2c6f; }
+        .btn-secondary { background-color: #7f8c8d; }
+        .btn-secondary:hover { background-color: #5d6d6f; }
+        .btn-copy { background-color: #2980B9; }
+        .btn-copy:hover { background-color: #1f6ea0; }
+        .section-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+
+        /* Table */
+        .table-wrapper { overflow-x: auto; }
+        table { border-collapse: collapse; background: #fff; font-size: 13px; min-width: 900px; }
+        th, td { border: 1px solid #ddd; padding: 6px 8px; text-align: center; white-space: nowrap; }
+        th { background-color: #6C3483; color: white; }
+        tr:nth-child(even) { background-color: #faf5ff; }
+        tr:hover { background-color: #f0e6ff; }
+        td input[type="text"] {
+            width: 70px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            padding: 3px 5px;
+            font-size: 13px;
+            font-family: Calibri, sans-serif;
+            text-align: center;
+            background: #fffde7;
+        }
+        td input[type="text"]:focus { border-color: #6C3483; outline: none; background: #fff9c4; }
+        td.editable-col { background-color: #fef9e7; }
+        th.editable-col { background-color: #9b59b6; }
+
+        /* Message output */
+        #msgOutput {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+            background: #f8f9fa;
+            border: 1px solid #ccc;
+            padding: 14px 16px;
+            border-radius: 4px;
+            white-space: pre;
+            line-height: 1.7;
+            min-height: 80px;
+            overflow-x: auto;
+        }
+        .no-data { color: #7f8c8d; font-style: italic; text-align: center; padding: 20px; }
+
+        /* Preview canvas (hidden, used for OCR) */
+        #previewCanvas { display: none; }
+        #previewImg { max-width: 100%; max-height: 220px; border: 1px solid #ddd; border-radius: 4px; margin-top: 10px; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="nav">
+    <a href="index.html">⏱ Timeline da Malha</a>
+    <a href="restricoes.html">⚠️ Cadastro de Restrições</a>
+    <a href="analise.html">🔍 Análise</a>
+    <a href="lembretes.html">🔔 Eventos e Lembretes</a>
+    <a href="meteo.html">☁️ Configuração Meteo</a>
+    <a href="paises.html">🌍 Países das Bases</a>
+    <a href="platoout.html">✈️ PlaToOut</a>
+    <a href="progvoos.html">📋 Prog. Voos</a>
+</div>
+
+<div class="container">
+    <h2>📋 Programação de Voos – Revised Schedule</h2>
+    <p style="font-size:13px;color:#555;">
+        Carregue a imagem da programação (padrão <em>imageprog</em>). Os dados serão extraídos automaticamente.
+        Preencha ETD, ETA e Data para gerar a mensagem revisada.
+    </p>
+
+    <div class="upload-box">
+        <div>Selecione ou arraste a imagem da programação de voos</div>
+        <label class="custom-file-upload" for="fileInput">📂 Escolher Imagem</label>
+        <input type="file" id="fileInput" accept="image/*">
+        <div class="file-name" id="fileName">Nenhum arquivo selecionado</div>
+        <div class="status-message" id="statusMsg"></div>
+        <img id="previewImg" alt="Preview">
+        <canvas id="previewCanvas"></canvas>
+    </div>
+
+    <div id="tableSection" style="display:none;">
+        <h3 style="color:#6C3483;">Tabela de Voos</h3>
+        <p style="font-size:12px;color:#888;">Preencha ETD, ETA e Data (ex: 22AUG) nos campos destacados. Deixe em branco para usar STD/STA.</p>
+        <div class="section-actions">
+            <button onclick="generateMessage()">🔄 Gerar Mensagem</button>
+            <button class="btn-secondary" onclick="addManualRow()">➕ Adicionar Linha</button>
+            <button class="btn-secondary" onclick="clearTable()">🗑️ Limpar Tabela</button>
+        </div>
+        <div class="table-wrapper">
+            <table id="flightTable">
+                <thead>
+                    <tr>
+                        <th>Flight</th>
+                        <th>Dep</th>
+                        <th>Arr</th>
+                        <th>STD</th>
+                        <th>STA</th>
+                        <th>Of</th>
+                        <th>Tp</th>
+                        <th>St</th>
+                        <th>FC</th>
+                        <th>Callsign</th>
+                        <th class="editable-col">ETD</th>
+                        <th class="editable-col">ETA</th>
+                        <th class="editable-col">Data</th>
+                    </tr>
+                </thead>
+                <tbody id="flightTableBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="container" id="msgSection" style="display:none;">
+    <h3 style="color:#6C3483;">Mensagem – Revised Schedule</h3>
+    <div class="section-actions">
+        <button class="btn-copy" onclick="copyMessage()">📋 Copiar Mensagem</button>
+    </div>
+    <div id="msgOutput"></div>
+    <div id="copyStatus" style="font-size:12px;color:#1e8449;margin-top:6px;display:none;">✅ Mensagem copiada!</div>
+</div>
+
+<!-- Tesseract.js OCR -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script>
+// ============================================================
+// FILE INPUT / IMAGE LOAD
+// ============================================================
+document.getElementById('fileInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    document.getElementById('fileName').textContent = file.name;
+    loadAndExtract(file);
+});
+
+// Drag-and-drop support
+const uploadBox = document.querySelector('.upload-box');
+uploadBox.addEventListener('dragover', e => { e.preventDefault(); uploadBox.style.borderColor = '#9b59b6'; });
+uploadBox.addEventListener('dragleave', () => { uploadBox.style.borderColor = '#6C3483'; });
+uploadBox.addEventListener('drop', e => {
+    e.preventDefault();
+    uploadBox.style.borderColor = '#6C3483';
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+        document.getElementById('fileName').textContent = file.name;
+        loadAndExtract(file);
+    }
+});
+
+function setStatus(msg, type) {
+    const el = document.getElementById('statusMsg');
+    el.textContent = msg;
+    el.className = 'status-message ' + (type || '');
+}
+
+function loadAndExtract(file) {
+    setStatus('⏳ Carregando imagem e extraindo dados...', 'info');
+    document.getElementById('tableSection').style.display = 'none';
+    document.getElementById('msgSection').style.display = 'none';
+
+    const reader = new FileReader();
+    reader.onload = function(ev) {
+        const img = document.getElementById('previewImg');
+        img.src = ev.target.result;
+        img.style.display = 'block';
+
+        // Run OCR
+        runOCR(ev.target.result);
+    };
+    reader.readAsDataURL(file);
+}
+
+// ============================================================
+// OCR WITH TESSERACT.JS
+// ============================================================
+async function runOCR(imageSrc) {
+    setStatus('⏳ Executando OCR… por favor aguarde.', 'info');
+    try {
+        const result = await Tesseract.recognize(imageSrc, 'eng', {
+            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .',
+        });
+        const text = result.data.text;
+        parseAndRender(text);
+    } catch(err) {
+        setStatus('❌ Erro no OCR: ' + err.message, 'error');
+    }
+}
+
+// ============================================================
+// PARSE OCR TEXT
+// The imageprog table columns: Flight | Dep | Arr | STD | STA | Of | Tp | St | FC | Callsign (ArcId)
+// STD/STA are 4-digit times (HHMM), Of is 1 digit, Tp is 1-2 chars, St is 1-3 chars, FC is 1-3 chars
+// ============================================================
+function parseAndRender(rawText) {
+    const rows = [];
+    const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+    // Regex: flight (4 digits) | DEP (3 alpha) | ARR (3 alpha) | STD (4 dig) | STA (4 dig) | Of (1 dig) | Tp | St | FC | Callsign
+    // We'll use a flexible regex that handles OCR noise
+    const lineRe = /(\d{4})\s+([A-Z]{3})\s+([A-Z]{3})\s+(\d{4})\s+(\d{4})\s+(\d)\s+([A-Z]{1,2})\s*([A-Z0-9]{0,3})\s*([A-Z0-9]{0,3})\s*(CLX\S*)?/i;
+
+    for (const line of lines) {
+        const m = line.match(lineRe);
+        if (m) {
+            rows.push({
+                flight: m[1],
+                dep: m[2].toUpperCase(),
+                arr: m[3].toUpperCase(),
+                std: formatTime(m[4]),
+                sta: formatTime(m[5]),
+                of: m[6],
+                tp: m[7].toUpperCase(),
+                st: (m[8] || '').toUpperCase(),
+                fc: (m[9] || '').toUpperCase(),
+                callsign: (m[10] || '').toUpperCase(),
+                etd: '',
+                eta: '',
+                date: ''
+            });
+        }
+    }
+
+    if (rows.length === 0) {
+        // Fallback: try softer parsing
+        parseFallback(lines, rows);
+    }
+
+    if (rows.length === 0) {
+        setStatus('⚠️ Não foi possível extrair dados da imagem. Use "➕ Adicionar Linha" para inserir manualmente.', 'error');
+        // Show table section with empty table so user can add rows manually
+        document.getElementById('flightTableBody').innerHTML = '';
+        document.getElementById('tableSection').style.display = 'block';
+        return;
+    }
+
+    renderTable(rows);
+    setStatus('✅ ' + rows.length + ' voo(s) extraído(s) com sucesso.', 'success');
+}
+
+function parseFallback(lines, rows) {
+    // Try tokenizing each line and guessing columns by position/pattern
+    for (const line of lines) {
+        const tokens = line.split(/\s+/);
+        if (tokens.length < 5) continue;
+
+        let idx = 0;
+        // Find flight number: 4 digits
+        while (idx < tokens.length && !/^\d{4}$/.test(tokens[idx])) idx++;
+        if (idx >= tokens.length) continue;
+
+        const flight = tokens[idx++];
+        const dep = (tokens[idx] || '').replace(/[^A-Z]/gi, '').toUpperCase().slice(0,3);
+        idx++;
+        const arr = (tokens[idx] || '').replace(/[^A-Z]/gi, '').toUpperCase().slice(0,3);
+        idx++;
+        const stdRaw = (tokens[idx] || '').replace(/[^0-9]/g, '');
+        idx++;
+        const staRaw = (tokens[idx] || '').replace(/[^0-9]/g, '');
+        idx++;
+        const of_ = (tokens[idx] || '').replace(/[^0-9]/g, '');
+        idx++;
+        const tp = (tokens[idx] || '').replace(/[^A-Z]/gi, '').toUpperCase();
+        idx++;
+        const st = (tokens[idx] || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+        idx++;
+        const fc = (tokens[idx] || '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+        idx++;
+        const callsign = tokens.slice(idx).join('').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+
+        if (dep.length === 3 && arr.length === 3 && stdRaw.length === 4 && staRaw.length === 4) {
+            rows.push({
+                flight,
+                dep,
+                arr,
+                std: formatTime(stdRaw),
+                sta: formatTime(staRaw),
+                of: of_,
+                tp,
+                st,
+                fc,
+                callsign,
+                etd: '',
+                eta: '',
+                date: ''
+            });
+        }
+    }
+}
+
+function formatTime(t) {
+    if (!t) return '';
+    t = t.replace(/[^0-9]/g, '');
+    return t.slice(0, 4); // keep at most 4 digits (HHMM)
+}
+
+// ============================================================
+// RENDER TABLE
+// ============================================================
+let tableData = [];
+
+function renderTable(rows) {
+    tableData = rows;
+    const tbody = document.getElementById('flightTableBody');
+    tbody.innerHTML = '';
+
+    rows.forEach((row, i) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML =
+            `<td>${escHtml(row.flight)}</td>` +
+            `<td>${escHtml(row.dep)}</td>` +
+            `<td>${escHtml(row.arr)}</td>` +
+            `<td>${escHtml(row.std)}</td>` +
+            `<td>${escHtml(row.sta)}</td>` +
+            `<td>${escHtml(row.of)}</td>` +
+            `<td>${escHtml(row.tp)}</td>` +
+            `<td>${escHtml(row.st)}</td>` +
+            `<td>${escHtml(row.fc)}</td>` +
+            `<td>${escHtml(row.callsign)}</td>` +
+            `<td class="editable-col"><input type="text" id="etd_${i}" placeholder="HHMM" maxlength="4" oninput="syncData(${i},'etd',this.value)" value="${escHtml(row.etd)}"></td>` +
+            `<td class="editable-col"><input type="text" id="eta_${i}" placeholder="HHMM" maxlength="4" oninput="syncData(${i},'eta',this.value)" value="${escHtml(row.eta)}"></td>` +
+            `<td class="editable-col"><input type="text" id="date_${i}" placeholder="22AUG" maxlength="6" oninput="syncData(${i},'date',this.value)" value="${escHtml(row.date)}"></td>`;
+        tbody.appendChild(tr);
+    });
+
+    document.getElementById('tableSection').style.display = 'block';
+}
+
+function syncData(i, field, val) {
+    if (tableData[i]) tableData[i][field] = val.trim().toUpperCase();
+}
+
+function clearTable() {
+    tableData = [];
+    document.getElementById('flightTableBody').innerHTML = '';
+    document.getElementById('tableSection').style.display = 'none';
+    document.getElementById('msgSection').style.display = 'none';
+    document.getElementById('fileName').textContent = 'Nenhum arquivo selecionado';
+    document.getElementById('previewImg').style.display = 'none';
+    document.getElementById('previewImg').src = '';
+    document.getElementById('fileInput').value = '';
+    setStatus('', '');
+}
+
+// ============================================================
+// GENERATE MESSAGE
+// Column widths (in spaces) for monospace alignment:
+//   Flight: 7   Dep: 5   STD/ETD: 6   STA/ETA: 6   Arr: 5   Date: 6
+// ============================================================
+function generateMessage() {
+    if (tableData.length === 0) {
+        alert('Nenhum dado disponível. Carregue a imagem primeiro.');
+        return;
+    }
+
+    // Refresh values from inputs (in case user didn't trigger oninput)
+    tableData.forEach((row, i) => {
+        const etdEl = document.getElementById('etd_' + i);
+        const etaEl = document.getElementById('eta_' + i);
+        const dateEl = document.getElementById('date_' + i);
+        if (etdEl) row.etd = etdEl.value.trim().toUpperCase();
+        if (etaEl) row.eta = etaEl.value.trim().toUpperCase();
+        if (dateEl) row.date = dateEl.value.trim().toUpperCase();
+    });
+
+    // Column widths tuned for Outlook monospace display
+    // "CV4796   LUX    1835Z          0630Z          HKG    22AUG"
+    // Flight(7) Dep(6) STD(14) STA(14) Arr(7) Date
+    const W_FLIGHT = 7;
+    const W_DEP    = 7;
+    const W_TIME1  = 14;
+    const W_TIME2  = 14;
+    const W_ARR    = 7;
+
+    let lines = ['Revised Schedule:'];
+
+    for (const row of tableData) {
+        const flight = 'CV' + row.flight;
+        const dep    = row.dep;
+        const arr    = row.arr;
+        const dep_time = (row.etd && row.etd.length >= 4 ? row.etd : row.std) + 'Z';
+        const arr_time = (row.eta && row.eta.length >= 4 ? row.eta : row.sta) + 'Z';
+        const date   = row.date || '';
+
+        const line =
+            padR(flight, W_FLIGHT) +
+            padR(dep, W_DEP) +
+            padR(dep_time, W_TIME1) +
+            padR(arr_time, W_TIME2) +
+            padR(arr, W_ARR) +
+            date;
+
+        lines.push(line);
+    }
+
+    const msg = lines.join('\n');
+    document.getElementById('msgOutput').textContent = msg;
+    document.getElementById('msgSection').style.display = 'block';
+    document.getElementById('msgSection').scrollIntoView({ behavior: 'smooth' });
+}
+
+function padR(str, len) {
+    str = str || '';
+    while (str.length < len) str += ' ';
+    return str;
+}
+
+// ============================================================
+// COPY MESSAGE
+// ============================================================
+function copyMessage() {
+    const text = document.getElementById('msgOutput').textContent;
+    if (!text.trim()) return;
+
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(() => showCopyStatus());
+    } else {
+        // Fallback for non-secure contexts
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showCopyStatus();
+    }
+}
+
+function showCopyStatus() {
+    const el = document.getElementById('copyStatus');
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 2500);
+}
+
+// ============================================================
+// MANUAL ENTRY SUPPORT
+// Allow user to manually add rows if OCR fails
+// ============================================================
+function addManualRow() {
+    const i = tableData.length;
+    tableData.push({ flight:'', dep:'', arr:'', std:'', sta:'', of:'', tp:'', st:'', fc:'', callsign:'', etd:'', eta:'', date:'' });
+    const tbody = document.getElementById('flightTableBody');
+    const tr = document.createElement('tr');
+    const makeCell = (field, ph, maxl, extra) =>
+        `<td><input type="text" placeholder="${ph}" maxlength="${maxl}" oninput="syncData(${i},'${field}',this.value)" ${extra||''}></td>`;
+    const makeEditCell = (field, ph, maxl) =>
+        `<td class="editable-col"><input type="text" id="${field}_${i}" placeholder="${ph}" maxlength="${maxl}" oninput="syncData(${i},'${field}',this.value)"></td>`;
+
+    tr.innerHTML =
+        makeCell('flight','4796',4,'') +
+        makeCell('dep','LUX',3,'') +
+        makeCell('arr','HKG',3,'') +
+        makeCell('std','1835',4,'') +
+        makeCell('sta','0630',4,'') +
+        makeCell('of','1',1,'') +
+        makeCell('tp','F',2,'') +
+        makeCell('st','',3,'') +
+        makeCell('fc','',3,'') +
+        makeCell('callsign','CLX342',10,'') +
+        makeEditCell('etd','HHMM',4) +
+        makeEditCell('eta','HHMM',4) +
+        makeEditCell('date','22AUG',6);
+    tbody.appendChild(tr);
+    document.getElementById('tableSection').style.display = 'block';
+}
+
+function escHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
