@@ -170,6 +170,9 @@
 <!-- Tesseract.js OCR -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script>
+const CALLSIGN_PREFIX = 'CLX';
+const CALLSIGN_RE = new RegExp(`^${CALLSIGN_PREFIX}[A-Z0-9]+$`, 'i');
+
 // ============================================================
 // FILE INPUT / IMAGE LOAD
 // ============================================================
@@ -286,8 +289,9 @@ function buildProcessedImage(img, scale, threshold) {
 // STD/STA are 4-digit times (HHMM), Of is 1 digit, Tp is 1-2 chars, St is 1-3 chars, FC is 1-3 chars
 // ============================================================
 function extractRows(rawText) {
-    const rows = [];
-    const lines = normalizeOCRText(rawText).split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    let rows = [];
+    const normalizedText = normalizeOCRText(rawText);
+    const lines = normalizedText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
     // Regex: flight (4 digits) | DEP (3 alpha) | ARR (3 alpha) | STD (4 dig) | STA (4 dig) | Of (1 dig) | Tp | optional St/FC | optional Callsign
     // The regex is anchored so trailing callsigns like CLX342 are not partially consumed by St/FC.
@@ -317,6 +321,13 @@ function extractRows(rawText) {
     if (rows.length === 0) {
         // Fallback: try softer parsing
         parseFallback(lines, rows);
+    }
+
+    const streamRows = [];
+    parseTokenStream(normalizedText, streamRows);
+    const combinedRows = combineRowSets(rows, streamRows);
+    if (combinedRows.length > rows.length) {
+        rows = combinedRows;
     }
 
     return rows;
@@ -405,6 +416,150 @@ function parseFallback(lines, rows) {
             });
         }
     }
+}
+
+function parseTokenStream(rawText, rows) {
+    const tokens = (rawText || '').split(/\s+/).map(t => t.trim()).filter(Boolean);
+
+    for (let i = 0; i <= tokens.length - 7; i++) {
+        if (!isLikelyRowStart(tokens, i)) continue;
+
+        const flight = normalizeDigitToken(tokens[i]);
+        const dep = normalizeAlphaToken(tokens[i + 1], 3);
+        const arr = normalizeAlphaToken(tokens[i + 2], 3);
+        const stdRaw = normalizeDigitToken(tokens[i + 3]);
+        const staRaw = normalizeDigitToken(tokens[i + 4]);
+        const of_ = normalizeDigitToken(tokens[i + 5]).slice(0, 1);
+        const tp = normalizeAlphaToken(tokens[i + 6], 2);
+
+        if (
+            flight.length !== 4 ||
+            dep.length !== 3 ||
+            arr.length !== 3 ||
+            !isValidTimeValue(stdRaw) ||
+            !isValidTimeValue(staRaw) ||
+            of_.length !== 1 ||
+            tp.length < 1
+        ) {
+            continue;
+        }
+
+        let st = '';
+        let fc = '';
+        let callsign = '';
+        let j = i + 7;
+
+        while (j < tokens.length && !isLikelyRowStart(tokens, j)) {
+            const callsignToken = normalizeCallsignToken(tokens[j]);
+            if (!callsign && isCallsignToken(callsignToken)) {
+                callsign = callsignToken;
+            } else {
+                const letters = normalizeAlphaToken(tokens[j], 3);
+                if (letters) {
+                    if (!st) st = letters;
+                    else if (!fc) fc = letters;
+                }
+            }
+            j++;
+        }
+
+        rows.push({
+            flight,
+            dep,
+            arr,
+            std: formatTime(stdRaw),
+            sta: formatTime(staRaw),
+            of: of_,
+            tp,
+            st,
+            fc,
+            callsign,
+            etd: '',
+            eta: '',
+            date: ''
+        });
+
+        i = j - 1;
+    }
+}
+
+function combineRowSets(primaryRows, streamRows) {
+    const primaryMap = new Map(primaryRows.map(row => [rowKey(row), row]));
+    const streamKeys = new Set(streamRows.map(rowKey));
+    const streamCoversPrimary = primaryRows.every(row => streamKeys.has(rowKey(row)));
+
+    if (streamCoversPrimary && streamRows.length > primaryRows.length) {
+        return streamRows.map(row => primaryMap.get(rowKey(row)) || row);
+    }
+
+    const result = [];
+    const seen = new Set();
+    [...primaryRows, ...streamRows].forEach(row => {
+        const key = rowKey(row);
+        if (!seen.has(key)) {
+            seen.add(key);
+            result.push(row);
+        }
+    });
+    return result;
+}
+
+function rowKey(row) {
+    return [row.flight, row.dep, row.arr, row.std, row.sta].join('|');
+}
+
+function normalizeDigitToken(token) {
+    return String(token || '')
+        .toUpperCase()
+        .replace(/[OQ]/g, '0')
+        .replace(/[IL]/g, '1')
+        .replace(/[^0-9]/g, '');
+}
+
+function normalizeAlphaToken(token, maxLen) {
+    const value = String(token || '')
+        .toUpperCase()
+        .replace(/[^A-Z]/g, '');
+    return typeof maxLen === 'number' ? value.slice(0, maxLen) : value;
+}
+
+function normalizeCallsignToken(token) {
+    return String(token || '')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '');
+}
+
+function isCallsignToken(token) {
+    return CALLSIGN_RE.test(token || '');
+}
+
+function isLikelyRowStart(tokens, index) {
+    if (index < 0 || index + 6 >= tokens.length) return false;
+
+    const flight = normalizeDigitToken(tokens[index]);
+    const dep = normalizeAlphaToken(tokens[index + 1], 3);
+    const arr = normalizeAlphaToken(tokens[index + 2], 3);
+    const stdRaw = normalizeDigitToken(tokens[index + 3]);
+    const staRaw = normalizeDigitToken(tokens[index + 4]);
+    const of_ = normalizeDigitToken(tokens[index + 5]).slice(0, 1);
+    const tp = normalizeAlphaToken(tokens[index + 6], 2);
+
+    return (
+        flight.length === 4 &&
+        dep.length === 3 &&
+        arr.length === 3 &&
+        isValidTimeValue(stdRaw) &&
+        isValidTimeValue(staRaw) &&
+        of_.length === 1 &&
+        tp.length >= 1
+    );
+}
+
+function isValidTimeValue(token) {
+    if (!/^\d{4}$/.test(token || '')) return false;
+    const hours = Number(token.slice(0, 2));
+    const minutes = Number(token.slice(2, 4));
+    return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
 }
 
 function formatTime(t) {
