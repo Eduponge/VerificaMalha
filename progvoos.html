@@ -136,9 +136,47 @@ function addManualRow() {
         makeCell('etd', 'HHMM', 4) +
         makeCell('eta', 'HHMM', 4) +
         makeCell('date', '22AUG', 6) +
-        `<td><button class="btn-secondary" style="padding:3px 8px;font-size:12px;" onclick="removeRow(this)">✕</button></td>`;
+        `<td>` +
+        `<button class="btn-copy" style="padding:3px 8px;font-size:12px;" onclick="duplicateRow(this)" title="Duplicar linha">📋</button> ` +
+        `<button class="btn-secondary" style="padding:3px 8px;font-size:12px;" onclick="removeRow(this)">✕</button>` +
+        `</td>`;
 
     tbody.appendChild(tr);
+}
+
+function duplicateRow(btn) {
+    const tr = btn.closest('tr');
+    const idx = parseInt(tr.dataset.index);
+    const fields = ['flight', 'dep', 'arr', 'etd', 'eta', 'date'];
+    // Read current input values from DOM
+    const inputs = tr.querySelectorAll('input');
+    const rowCopy = {};
+    fields.forEach((f, fi) => {
+        rowCopy[f] = inputs[fi] ? inputs[fi].value.trim().toUpperCase() : '';
+    });
+    // Insert copy into tableData after current row
+    tableData.splice(idx + 1, 0, rowCopy);
+    // Rebuild tbody from tableData
+    const tbody = document.getElementById('flightTableBody');
+    tbody.innerHTML = '';
+    tableData.forEach((data, i) => {
+        const newTr = document.createElement('tr');
+        newTr.dataset.index = i;
+        const makeCell = (field, ph, maxl) =>
+            `<td><input type="text" placeholder="${ph}" maxlength="${maxl}" value="${data[field] || ''}" oninput="syncData(${i},'${field}',this.value)"></td>`;
+        newTr.innerHTML =
+            makeCell('flight', '4796', 4) +
+            makeCell('dep', 'LUX', 3) +
+            makeCell('arr', 'HKG', 3) +
+            makeCell('etd', 'HHMM', 4) +
+            makeCell('eta', 'HHMM', 4) +
+            makeCell('date', '22AUG', 6) +
+            `<td>` +
+            `<button class="btn-copy" style="padding:3px 8px;font-size:12px;" onclick="duplicateRow(this)" title="Duplicar linha">📋</button> ` +
+            `<button class="btn-secondary" style="padding:3px 8px;font-size:12px;" onclick="removeRow(this)">✕</button>` +
+            `</td>`;
+        tbody.appendChild(newTr);
+    });
 }
 
 function removeRow(btn) {
