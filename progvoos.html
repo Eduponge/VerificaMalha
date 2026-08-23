@@ -225,16 +225,20 @@ function loadAndExtract(file) {
 // ============================================================
 async function runOCR(imageSrc) {
     setStatus('⏳ Executando OCR… por favor aguarde.', 'info');
+    let worker;
     try {
         const variants = await buildOCRVariants(imageSrc);
         let bestRows = [];
 
+        worker = await Tesseract.createWorker('eng');
+        await worker.setParameters({
+            tessedit_pageseg_mode: '6',
+            preserve_interword_spaces: '1',
+            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 /.',
+        });
+
         for (const variant of variants) {
-            const result = await Tesseract.recognize(variant.image, 'eng', {
-                tessedit_pageseg_mode: 6,
-                preserve_interword_spaces: '1',
-                tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 /.',
-            });
+            const result = await worker.recognize(variant.image);
             const rows = extractRows(result.data.text);
             if (rows.length > bestRows.length) bestRows = rows;
             if (bestRows.length >= 4) break;
@@ -243,12 +247,15 @@ async function runOCR(imageSrc) {
         renderExtractionResult(bestRows);
     } catch(err) {
         setStatus('❌ Erro no OCR: ' + err.message, 'error');
+    } finally {
+        if (worker) worker.terminate();
     }
 }
 
 function buildOCRVariants(imageSrc) {
     return loadImageElement(imageSrc).then(img => ([
         { image: buildProcessedImage(img, 4, 180) },
+        { image: buildProcessedImage(img, 4, 100) },
         { image: imageSrc }
     ]));
 }
