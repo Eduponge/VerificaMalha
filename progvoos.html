@@ -260,7 +260,7 @@ function loadImageElement(src) {
 }
 
 function buildProcessedImage(img, scale, threshold) {
-    const canvas = document.getElementById('previewCanvas');
+    const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     canvas.width = img.naturalWidth * scale;
     canvas.height = img.naturalHeight * scale;
@@ -327,7 +327,6 @@ function parseAndRender(rawText) {
 }
 
 function renderExtractionResult(rows) {
-    
     if (rows.length === 0) {
         setStatus('⚠️ Não foi possível extrair dados da imagem. Use "➕ Adicionar Linha" para inserir manualmente.', 'error');
         // Show table section with empty table so user can add rows manually
@@ -343,7 +342,9 @@ function renderExtractionResult(rows) {
 function normalizeOCRText(rawText) {
     return (rawText || '')
         .replace(/\r/g, '')
-        .replace(/[|()[\]_=.\/]/g, ' ')
+        .replace(/[|()[\]_.=]/g, ' ')
+        .replace(/\b([A-Z]{3})\/([A-Z]{3})\b/gi, '$1 $2')
+        .replace(/\b(\d{4})\/(\d{1,4})\b/g, '$1 $2')
         .replace(/\b(\d{4})(\d{4})\b/g, '$1 $2')
         .replace(/[^\S\n]+/g, ' ');
 }
