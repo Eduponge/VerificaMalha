@@ -357,7 +357,7 @@
                         const d = Number(parts[0]);
                         const m = parseMonth(parts[1]);
                         const y = parseYear(parts[2]);
-                        return d === Number(segmentDay) &&
+                        return Number.isFinite(d) && d === Number(segmentDay) &&
                             (m == null || (segmentMonth != null && m === Number(segmentMonth))) &&
                             (y == null || (segmentYear != null && y === Number(segmentYear)));
                     }
@@ -373,7 +373,7 @@
                                 (m == null || (segmentMonth != null && m === Number(segmentMonth)));
                         }
                         const d = Number(parts[0]);
-                        return d === Number(segmentDay) &&
+                        return Number.isFinite(d) && d === Number(segmentDay) &&
                             (m == null || (segmentMonth != null && m === Number(segmentMonth)));
                     }
                 }
@@ -443,15 +443,18 @@
             return null;
         }
 
-        function isRestrictionActive(restriction, segment) {
+        function getRestrictionValidityStatus(restriction, segment) {
             const dep = getSegmentDepDate(segment);
-            if (!dep) return true;
+            if (!dep) return { active: true };
 
             const effective = restriction.effectiveDate || restriction.startDate || restriction.initDate;
             if (effective) {
                 const start = new Date(`${effective}T00:00:00Z`);
                 if (!Number.isNaN(start.getTime()) && dep < start) {
-                    return false;
+                    return {
+                        active: false,
+                        reason: `Restrição ainda não vigente para a data do segmento (início: ${effective})`
+                    };
                 }
             }
 
@@ -459,11 +462,18 @@
             if (expiration) {
                 const exp = new Date(`${expiration}T23:59:59Z`);
                 if (!Number.isNaN(exp.getTime()) && dep > exp) {
-                    return false;
+                    return {
+                        active: false,
+                        reason: `Restrição expirada para a data do segmento (validade: ${expiration})`
+                    };
                 }
             }
 
-            return true;
+            return { active: true };
+        }
+
+        function isRestrictionActive(restriction, segment) {
+            return getRestrictionValidityStatus(restriction, segment).active;
         }
 
         const ICV_REGS = new Set(['LX-UCV', 'LX-VCV', 'LX-WCV', 'LX-YCV']);
@@ -539,17 +549,9 @@
 
         function evaluateRestrictionAgainstSegment(restriction, segment, context) {
             const ctx = context || {};
-            if (!isRestrictionActive(restriction, segment)) {
-                const dep = getSegmentDepDate(segment);
-                const effective = restriction.effectiveDate || restriction.startDate || restriction.initDate;
-                const expiration = restriction.expirationDate || restriction.endDate;
-                if (dep && effective && dep < new Date(`${effective}T00:00:00Z`)) {
-                    return { pass: false, reason: [`Restrição ainda não vigente para a data do segmento (início: ${effective})`] };
-                }
-                if (dep && expiration && dep > new Date(`${expiration}T23:59:59Z`)) {
-                    return { pass: false, reason: [`Restrição expirada para a data do segmento (validade: ${expiration})`] };
-                }
-                return { pass: false, reason: ['Restrição fora do período de vigência'] };
+            const validity = getRestrictionValidityStatus(restriction, segment);
+            if (!validity.active) {
+                return { pass: false, reason: [validity.reason || 'Restrição fora do período de vigência'] };
             }
 
             // Fleet scope filter
