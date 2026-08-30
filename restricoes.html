@@ -91,9 +91,9 @@
         <div class="form-group"><label>ARPT_IATA_Orig</label><input type="text" id="arptIataOrig" maxlength="4" placeholder="ex: ORD"></div>
         <div class="form-group"><label>Weekday</label><input type="text" id="weekday" placeholder="0-6, MON, TUE..."></div>
 
-        <div class="form-group"><label>Day</label><input type="number" id="day" min="1" max="31" placeholder="1-31"></div>
-        <div class="form-group"><label>Month</label><input type="number" id="month" min="1" max="12" placeholder="1-12"></div>
-        <div class="form-group"><label>Year</label><input type="number" id="year" min="2000" max="2100" placeholder="2026"></div>
+        <div class="form-group"><label>Day</label><input type="text" id="day" placeholder="ex: 1-31, 1, 15 ou 15/08"></div>
+        <div class="form-group"><label>Month</label><input type="text" id="month" placeholder="ex: 1-12, JUL, AGO, 7, 8"></div>
+        <div class="form-group"><label>Year</label><input type="text" id="year" placeholder="ex: 2026, 2025-2027"></div>
         <div class="form-group"><label>Fleet_Type (AC)</label><input type="text" id="fleetType" list="fleetTypeOptions" placeholder="ex: 748 / 74Y"></div>
         <datalist id="fleetTypeOptions"></datalist>
 
@@ -122,8 +122,9 @@
         <div class="form-group"><label>Max Duty Time (min)</label><input type="number" id="maxDutyTime" min="0" placeholder="ex: 480"></div>
         <div class="form-group"><label>Max Dep Delay/Anticipation (min)</label><input type="number" id="maxDepDelayTime" placeholder="ex: 60 ou -15"></div>
         <div class="form-group"><label>Min Crew Composition</label><input type="number" id="minCrewComposition" min="0" placeholder="ex: 3"></div>
+        <div class="form-group"><label>Effective Date / início de validade</label><input type="date" id="effectiveDate"></div>
         <div class="form-group"><label>Expiration Date / validade</label><input type="date" id="expirationDate"></div>
-        <div class="form-group" style="grid-column: span 2;"><label>Description / remarks</label><textarea id="description" rows="2" placeholder="Regras, premissas e observações"></textarea></div>
+        <div class="form-group" style="grid-column: span 3;"><label>Description / remarks</label><textarea id="description" rows="2" placeholder="Regras, premissas e observações"></textarea></div>
 
         <div class="actions">
             <button onclick="saveRestriction()">Salvar restrição</button>
@@ -154,6 +155,7 @@
                     <th>Max Ground</th>
                     <th>Max Duty</th>
                     <th>Min Crew</th>
+                    <th>Effective</th>
                     <th>Expiration</th>
                     <th>Description</th>
                     <th>Ações</th>
@@ -209,9 +211,9 @@
                 arptIataArr: toUpper(item.arptIataArr),
                 arptIataOrig: toUpper(item.arptIataOrig),
                 weekday: toUpper(item.weekday),
-                day: toNumberOrEmpty(item.day),
-                month: toNumberOrEmpty(item.month),
-                year: toNumberOrEmpty(item.year),
+                day: normalize(item.day),
+                month: normalize(item.month),
+                year: normalize(item.year),
                 initHour1: normalize(item.initHour1),
                 endHour1: normalize(item.endHour1),
                 initHour2: normalize(item.initHour2),
@@ -226,7 +228,8 @@
                 maxGroundTime: toNumberOrEmpty(item.maxGroundTime),
                 maxDutyTime: toNumberOrEmpty(item.maxDutyTime),
                 minCrewComposition: toNumberOrEmpty(item.minCrewComposition),
-                expirationDate: toISODateOrEmpty(item.expirationDate),
+                effectiveDate: toISODateOrEmpty(item.effectiveDate || item.startDate || item.initDate),
+                expirationDate: toISODateOrEmpty(item.expirationDate || item.endDate),
                 description: normalize(item.description)
             };
         }
@@ -261,6 +264,7 @@
                 maxGroundTime: '',
                 maxDutyTime: '',
                 minCrewComposition: '',
+                effectiveDate: item.start ? String(item.start).slice(0, 10) : '',
                 expirationDate: item.end ? String(item.end).slice(0, 10) : '',
                 description: item.desc || ''
             }));
@@ -277,9 +281,10 @@
             document.getElementById('restrictionType').value = 'Customs';
             [
                 'arptIataArr','arptIataOrig','weekday','day','month','year','initHour1','endHour1','initHour2','endHour2',
-                'initHour3','endHour3','fleetType','specificAcft','maxArrDelayTime','maxDepDelayTime','maxGroundTime','maxDutyTime','minCrewComposition','expirationDate','description'
+                'initHour3','endHour3','fleetType','specificAcft','maxArrDelayTime','maxDepDelayTime','maxGroundTime','maxDutyTime','minCrewComposition','effectiveDate','expirationDate','description'
             ].forEach((id) => {
-                document.getElementById(id).value = '';
+                const el = document.getElementById(id);
+                if (el) el.value = '';
             });
             document.getElementById('fleetScopeAll').checked = true;
         }
@@ -292,9 +297,9 @@
                 arptIataArr: toUpper(document.getElementById('arptIataArr').value),
                 arptIataOrig: toUpper(document.getElementById('arptIataOrig').value),
                 weekday: toUpper(document.getElementById('weekday').value),
-                day: toNumberOrEmpty(document.getElementById('day').value),
-                month: toNumberOrEmpty(document.getElementById('month').value),
-                year: toNumberOrEmpty(document.getElementById('year').value),
+                day: normalize(document.getElementById('day').value),
+                month: normalize(document.getElementById('month').value),
+                year: normalize(document.getElementById('year').value),
                 initHour1: normalize(document.getElementById('initHour1').value),
                 endHour1: normalize(document.getElementById('endHour1').value),
                 initHour2: normalize(document.getElementById('initHour2').value),
@@ -309,6 +314,7 @@
                 maxGroundTime: toNumberOrEmpty(document.getElementById('maxGroundTime').value),
                 maxDutyTime: toNumberOrEmpty(document.getElementById('maxDutyTime').value),
                 minCrewComposition: toNumberOrEmpty(document.getElementById('minCrewComposition').value),
+                effectiveDate: toISODateOrEmpty(document.getElementById('effectiveDate').value),
                 expirationDate: toISODateOrEmpty(document.getElementById('expirationDate').value),
                 description: normalize(document.getElementById('description').value)
             };
@@ -401,20 +407,21 @@
                     <td>${escapeHtml(item.arptIataArr || '—')}</td>
                     <td>${escapeHtml(item.arptIataOrig || '—')}</td>
                     <td>${escapeHtml(item.weekday || '—')}</td>
-                    <td>${item.day === '' ? '—' : item.day}</td>
-                    <td>${item.month === '' ? '—' : item.month}</td>
-                    <td>${item.year === '' ? '—' : item.year}</td>
+                    <td>${item.day == null || item.day === '' ? '—' : escapeHtml(item.day)}</td>
+                    <td>${item.month == null || item.month === '' ? '—' : escapeHtml(item.month)}</td>
+                    <td>${item.year == null || item.year === '' ? '—' : escapeHtml(item.year)}</td>
                     <td>${escapeHtml(formatHourWindow(item.initHour1, item.endHour1))}</td>
                     <td>${escapeHtml(formatHourWindow(item.initHour2, item.endHour2))}</td>
                     <td>${escapeHtml(formatHourWindow(item.initHour3, item.endHour3))}</td>
                     <td>${escapeHtml(item.fleetType || '—')}</td>
                     <td>${escapeHtml(item.specificAcft || '—')}</td>
                     <td>${escapeHtml(item.fleetScope || 'All')}</td>
-                    <td>${item.maxArrDelayTime === '' ? '—' : item.maxArrDelayTime}</td>
-                    <td>${item.maxDepDelayTime === '' ? '—' : item.maxDepDelayTime}</td>
-                    <td>${item.maxGroundTime === '' ? '—' : item.maxGroundTime}</td>
-                    <td>${item.maxDutyTime === '' ? '—' : item.maxDutyTime}</td>
-                    <td>${item.minCrewComposition === '' ? '—' : item.minCrewComposition}</td>
+                    <td>${item.maxArrDelayTime === '' || item.maxArrDelayTime == null ? '—' : item.maxArrDelayTime}</td>
+                    <td>${item.maxDepDelayTime === '' || item.maxDepDelayTime == null ? '—' : item.maxDepDelayTime}</td>
+                    <td>${item.maxGroundTime === '' || item.maxGroundTime == null ? '—' : item.maxGroundTime}</td>
+                    <td>${item.maxDutyTime === '' || item.maxDutyTime == null ? '—' : item.maxDutyTime}</td>
+                    <td>${item.minCrewComposition === '' || item.minCrewComposition == null ? '—' : item.minCrewComposition}</td>
+                    <td>${escapeHtml(item.effectiveDate || '—')}</td>
                     <td>${escapeHtml(item.expirationDate || '—')}</td>
                     <td>${escapeHtml(item.description || '—')}</td>
                     <td>
@@ -447,9 +454,9 @@
             document.getElementById('arptIataArr').value = item.arptIataArr || '';
             document.getElementById('arptIataOrig').value = item.arptIataOrig || '';
             document.getElementById('weekday').value = item.weekday || '';
-            document.getElementById('day').value = item.day === '' ? '' : item.day;
-            document.getElementById('month').value = item.month === '' ? '' : item.month;
-            document.getElementById('year').value = item.year === '' ? '' : item.year;
+            document.getElementById('day').value = item.day != null ? item.day : '';
+            document.getElementById('month').value = item.month != null ? item.month : '';
+            document.getElementById('year').value = item.year != null ? item.year : '';
             document.getElementById('initHour1').value = item.initHour1 || '';
             document.getElementById('endHour1').value = item.endHour1 || '';
             document.getElementById('initHour2').value = item.initHour2 || '';
@@ -464,11 +471,12 @@
             else document.getElementById('fleetScopeAll').checked = true;
             const maxArrFallback = item.maxArrDelayTime != null ? item.maxArrDelayTime : (item.maxDelayTime ?? '');
             document.getElementById('maxArrDelayTime').value = maxArrFallback;
-            document.getElementById('maxDepDelayTime').value = item.maxDepDelayTime === '' ? '' : item.maxDepDelayTime;
-            document.getElementById('maxGroundTime').value = item.maxGroundTime === '' ? '' : item.maxGroundTime;
-            document.getElementById('maxDutyTime').value = item.maxDutyTime === '' ? '' : item.maxDutyTime;
-            document.getElementById('minCrewComposition').value = item.minCrewComposition === '' ? '' : item.minCrewComposition;
-            document.getElementById('expirationDate').value = item.expirationDate || '';
+            document.getElementById('maxDepDelayTime').value = item.maxDepDelayTime === '' || item.maxDepDelayTime == null ? '' : item.maxDepDelayTime;
+            document.getElementById('maxGroundTime').value = item.maxGroundTime === '' || item.maxGroundTime == null ? '' : item.maxGroundTime;
+            document.getElementById('maxDutyTime').value = item.maxDutyTime === '' || item.maxDutyTime == null ? '' : item.maxDutyTime;
+            document.getElementById('minCrewComposition').value = item.minCrewComposition === '' || item.minCrewComposition == null ? '' : item.minCrewComposition;
+            document.getElementById('effectiveDate').value = item.effectiveDate || item.startDate || item.initDate || '';
+            document.getElementById('expirationDate').value = item.expirationDate || item.endDate || '';
             document.getElementById('description').value = item.description || '';
         }
 

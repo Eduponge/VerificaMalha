@@ -250,6 +250,146 @@
             return Number(restrictionValue) === Number(segmentValue);
         }
 
+        function parseMonth(val) {
+            if (val == null) return null;
+            const s = String(val).trim().toUpperCase();
+            if (!s) return null;
+            const num = Number(s);
+            if (Number.isFinite(num) && num >= 1 && num <= 12) return Math.floor(num);
+            const clean = s.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+            const monthMap = {
+                'JAN': 1, 'JANEIRO': 1, 'JANUARY': 1,
+                'FEB': 2, 'FEV': 2, 'FEVEREIRO': 2, 'FEBRUARY': 2,
+                'MAR': 3, 'MARCO': 3, 'MARÇO': 3, 'MARCH': 3,
+                'APR': 4, 'ABR': 4, 'ABRIL': 4, 'APRIL': 4,
+                'MAY': 5, 'MAI': 5, 'MAIO': 5,
+                'JUN': 6, 'JUNHO': 6, 'JUNE': 6,
+                'JUL': 7, 'JULHO': 7, 'JULY': 7,
+                'AUG': 8, 'AGO': 8, 'AGOSTO': 8, 'AUGUST': 8,
+                'SEP': 9, 'SET': 9, 'SETEMBRO': 9, 'SEPTEMBER': 9,
+                'OCT': 10, 'OUT': 10, 'OUTUBRO': 10, 'OCTOBER': 10,
+                'NOV': 11, 'NOVEMBRO': 11, 'NOVEMBER': 11,
+                'DEC': 12, 'DEZ': 12, 'DEZEMBRO': 12, 'DECEMBER': 12
+            };
+            if (monthMap[clean] != null) return monthMap[clean];
+            const prefix = clean.slice(0, 3);
+            if (monthMap[prefix] != null) return monthMap[prefix];
+            return null;
+        }
+
+        function parseYear(val) {
+            if (val == null) return null;
+            const s = String(val).trim();
+            if (!s) return null;
+            const num = Number(s);
+            if (!Number.isFinite(num)) return null;
+            const y = Math.floor(num);
+            if (y < 100) return y >= 0 ? 2000 + y : null;
+            return y;
+        }
+
+        function matchYear(restrictionYear, segmentYear) {
+            if (restrictionYear === '' || restrictionYear == null) return true;
+            if (segmentYear == null) return false;
+            const s = String(restrictionYear).trim();
+            if (!s) return true;
+            const tokens = s.split(/[,;\s]+/).filter(Boolean);
+            if (!tokens.length) return true;
+            return tokens.some((token) => {
+                const rangeMatch = token.match(/^(\d{2,4})\s*-\s*(\d{2,4})$/);
+                if (rangeMatch) {
+                    const y1 = parseYear(rangeMatch[1]);
+                    const y2 = parseYear(rangeMatch[2]);
+                    if (y1 != null && y2 != null) {
+                        const start = Math.min(y1, y2);
+                        const end = Math.max(y1, y2);
+                        return Number(segmentYear) >= start && Number(segmentYear) <= end;
+                    }
+                }
+                const y = parseYear(token);
+                return y != null && y === Number(segmentYear);
+            });
+        }
+
+        function matchMonth(restrictionMonth, segmentMonth, segmentYear) {
+            if (restrictionMonth === '' || restrictionMonth == null) return true;
+            if (segmentMonth == null) return false;
+            const s = String(restrictionMonth).trim();
+            if (!s) return true;
+            const tokens = s.split(/[,;\s]+/).filter(Boolean);
+            if (!tokens.length) return true;
+            return tokens.some((token) => {
+                if (token.includes('/')) {
+                    const parts = token.split('/');
+                    const m = parseMonth(parts[0]);
+                    const y = parseYear(parts[1]);
+                    if (m != null && m === Number(segmentMonth)) {
+                        return y == null || (segmentYear != null && y === Number(segmentYear));
+                    }
+                    return false;
+                }
+                const rangeMatch = token.match(/^([A-Za-z0-9]+)\s*-\s*([A-Za-z0-9]+)$/);
+                if (rangeMatch) {
+                    const m1 = parseMonth(rangeMatch[1]);
+                    const m2 = parseMonth(rangeMatch[2]);
+                    if (m1 != null && m2 != null) {
+                        const start = Math.min(m1, m2);
+                        const end = Math.max(m1, m2);
+                        return Number(segmentMonth) >= start && Number(segmentMonth) <= end;
+                    }
+                }
+                const m = parseMonth(token);
+                return m != null && m === Number(segmentMonth);
+            });
+        }
+
+        function matchDay(restrictionDay, segmentDay, segmentMonth, segmentYear) {
+            if (restrictionDay === '' || restrictionDay == null) return true;
+            if (segmentDay == null) return false;
+            const s = String(restrictionDay).trim();
+            if (!s) return true;
+            const tokens = s.split(/[,;\s]+/).filter(Boolean);
+            if (!tokens.length) return true;
+            return tokens.some((token) => {
+                if (token.includes('/')) {
+                    const parts = token.split('/');
+                    if (parts.length >= 3) {
+                        const d = Number(parts[0]);
+                        const m = parseMonth(parts[1]);
+                        const y = parseYear(parts[2]);
+                        return Number.isFinite(d) && d === Number(segmentDay) &&
+                            (m == null || (segmentMonth != null && m === Number(segmentMonth))) &&
+                            (y == null || (segmentYear != null && y === Number(segmentYear)));
+                    }
+                    if (parts.length === 2) {
+                        const rangeMatch = parts[0].match(/^(\d{1,2})\s*-\s*(\d{1,2})$/);
+                        const m = parseMonth(parts[1]);
+                        if (rangeMatch) {
+                            const d1 = Number(rangeMatch[1]);
+                            const d2 = Number(rangeMatch[2]);
+                            const start = Math.min(d1, d2);
+                            const end = Math.max(d1, d2);
+                            return Number(segmentDay) >= start && Number(segmentDay) <= end &&
+                                (m == null || (segmentMonth != null && m === Number(segmentMonth)));
+                        }
+                        const d = Number(parts[0]);
+                        return Number.isFinite(d) && d === Number(segmentDay) &&
+                            (m == null || (segmentMonth != null && m === Number(segmentMonth)));
+                    }
+                }
+                const rangeMatch = token.match(/^(\d{1,2})\s*-\s*(\d{1,2})$/);
+                if (rangeMatch) {
+                    const d1 = Number(rangeMatch[1]);
+                    const d2 = Number(rangeMatch[2]);
+                    const start = Math.min(d1, d2);
+                    const end = Math.max(d1, d2);
+                    return Number(segmentDay) >= start && Number(segmentDay) <= end;
+                }
+                const d = Number(token);
+                return Number.isFinite(d) && d === Number(segmentDay);
+            });
+        }
+
         function matchWeekday(restrictionValue, segmentWeekday) {
             const rv = upper(restrictionValue);
             if (!rv) return true;
@@ -292,12 +432,48 @@
             return { pass: true, detail: `Dentro da janela ${passedWindow[0]}-${passedWindow[1]}` };
         }
 
+        function getSegmentDepDate(segment) {
+            if (segment.depDateTimeISO) {
+                const d = new Date(segment.depDateTimeISO);
+                if (!Number.isNaN(d.getTime())) return d;
+            }
+            if (segment.year && segment.month && segment.day) {
+                return new Date(Date.UTC(segment.year, segment.month - 1, segment.day, 12, 0, 0));
+            }
+            return null;
+        }
+
+        function getRestrictionValidityStatus(restriction, segment) {
+            const dep = getSegmentDepDate(segment);
+            if (!dep) return { active: true };
+
+            const effective = restriction.effectiveDate || restriction.startDate || restriction.initDate;
+            if (effective) {
+                const start = new Date(`${effective}T00:00:00Z`);
+                if (!Number.isNaN(start.getTime()) && dep < start) {
+                    return {
+                        active: false,
+                        reason: `Restrição ainda não vigente para a data do segmento (início: ${effective})`
+                    };
+                }
+            }
+
+            const expiration = restriction.expirationDate || restriction.endDate;
+            if (expiration) {
+                const exp = new Date(`${expiration}T23:59:59Z`);
+                if (!Number.isNaN(exp.getTime()) && dep > exp) {
+                    return {
+                        active: false,
+                        reason: `Restrição expirada para a data do segmento (validade: ${expiration})`
+                    };
+                }
+            }
+
+            return { active: true };
+        }
+
         function isRestrictionActive(restriction, segment) {
-            if (!restriction.expirationDate) return true;
-            const dep = new Date(segment.depDateTimeISO || '');
-            if (Number.isNaN(dep.getTime())) return true;
-            const exp = new Date(`${restriction.expirationDate}T23:59:59Z`);
-            return dep <= exp;
+            return getRestrictionValidityStatus(restriction, segment).active;
         }
 
         const ICV_REGS = new Set(['LX-UCV', 'LX-VCV', 'LX-WCV', 'LX-YCV']);
@@ -373,8 +549,9 @@
 
         function evaluateRestrictionAgainstSegment(restriction, segment, context) {
             const ctx = context || {};
-            if (!isRestrictionActive(restriction, segment)) {
-                return { pass: false, reason: ['Restrição expirada para a data do segmento'] };
+            const validity = getRestrictionValidityStatus(restriction, segment);
+            if (!validity.active) {
+                return { pass: false, reason: [validity.reason || 'Restrição fora do período de vigência'] };
             }
 
             // Fleet scope filter
@@ -423,14 +600,14 @@
             checks.push(matchWeekday(restriction.weekday, segment.weekday));
             if (restriction.weekday) reasons.push(`Weekday=${segment.weekday}`);
 
-            checks.push(matchNumeric(restriction.day, segment.day));
-            if (restriction.day !== '') reasons.push(`Dia=${segment.day}`);
+            checks.push(matchYear(restriction.year, segment.year));
+            if (restriction.year) reasons.push(`Ano=${segment.year}`);
 
-            checks.push(matchNumeric(restriction.month, segment.month));
-            if (restriction.month !== '') reasons.push(`Mês=${segment.month}`);
+            checks.push(matchMonth(restriction.month, segment.month, segment.year));
+            if (restriction.month) reasons.push(`Mês=${segment.month}`);
 
-            checks.push(matchNumeric(restriction.year, segment.year));
-            if (restriction.year !== '') reasons.push(`Ano=${segment.year}`);
+            checks.push(matchDay(restriction.day, segment.day, segment.month, segment.year));
+            if (restriction.day) reasons.push(`Dia=${segment.day}`);
 
             const fleetCandidate = segment.fleetType || segment.reg;
             checks.push(matchField(restriction.fleetType, fleetCandidate) || matchField(restriction.fleetType, segment.reg));

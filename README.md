@@ -37,20 +37,23 @@ Ao carregar um novo DayRep em `index.html`, a chave `lastAnalysis` é removida p
 - ARPT_IATA_Arr
 - ARPT_IATA_Orig
 - Weekday
-- Day
-- Month
-- Year
+- Day (aceita valores únicos, múltiplos separados por vírgula, intervalos como `1-15`, ou datas associadas como `15/08`)
+- Month (aceita números `1-12`, nomes/abreviações em português ou inglês como `JUL`, `AGO`, listas e intervalos como `1-6`, ou mês/ano como `08/2026`)
+- Year (aceita ano único como `2026`, múltiplos e intervalos como `2025-2027`)
 - Init_Hour1 / End_Hour1
 - Init_Hour2 / End_Hour2
 - Init_Hour3 / End_Hour3
 - Fleet_Type
-- Max Delay Time
+- Max Arr Delay Time / Anticipation
+- Max Dep Delay Time / Anticipation
 - Max Ground Time
+- Max Duty Time
 - Min Crew Composition
+- Effective Date / início de validade
 - Expiration Date / validade
 - Description / remarks
 
-Campos vazios funcionam como wildcard (não restritivo).
+Campos vazios funcionam como wildcard (não restritivo). Day, Month e Year operam de forma associativa para filtrar dias específicos de meses ou meses de determinados anos.
 
 ## Lógica de análise
 
