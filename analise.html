@@ -271,9 +271,9 @@
                 'NOV': 11, 'NOVEMBRO': 11, 'NOVEMBER': 11,
                 'DEC': 12, 'DEZ': 12, 'DEZEMBRO': 12, 'DECEMBER': 12
             };
-            if (monthMap[clean]) return monthMap[clean];
+            if (monthMap[clean] != null) return monthMap[clean];
             const prefix = clean.slice(0, 3);
-            if (monthMap[prefix]) return monthMap[prefix];
+            if (monthMap[prefix] != null) return monthMap[prefix];
             return null;
         }
 
@@ -290,7 +290,7 @@
 
         function matchYear(restrictionYear, segmentYear) {
             if (restrictionYear === '' || restrictionYear == null) return true;
-            if (segmentYear == null) return true;
+            if (segmentYear == null) return false;
             const s = String(restrictionYear).trim();
             if (!s) return true;
             const tokens = s.split(/[,;\s]+/).filter(Boolean);
@@ -313,10 +313,10 @@
 
         function matchMonth(restrictionMonth, segmentMonth, segmentYear) {
             if (restrictionMonth === '' || restrictionMonth == null) return true;
-            if (segmentMonth == null) return true;
+            if (segmentMonth == null) return false;
             const s = String(restrictionMonth).trim();
             if (!s) return true;
-            const tokens = s.split(/[,;]+/).map((t) => t.trim()).filter(Boolean);
+            const tokens = s.split(/[,;\s]+/).filter(Boolean);
             if (!tokens.length) return true;
             return tokens.some((token) => {
                 if (token.includes('/')) {
@@ -324,7 +324,7 @@
                     const m = parseMonth(parts[0]);
                     const y = parseYear(parts[1]);
                     if (m != null && m === Number(segmentMonth)) {
-                        return y == null || segmentYear == null || y === Number(segmentYear);
+                        return y == null || (segmentYear != null && y === Number(segmentYear));
                     }
                     return false;
                 }
@@ -345,10 +345,10 @@
 
         function matchDay(restrictionDay, segmentDay, segmentMonth, segmentYear) {
             if (restrictionDay === '' || restrictionDay == null) return true;
-            if (segmentDay == null) return true;
+            if (segmentDay == null) return false;
             const s = String(restrictionDay).trim();
             if (!s) return true;
-            const tokens = s.split(/[,;]+/).map((t) => t.trim()).filter(Boolean);
+            const tokens = s.split(/[,;\s]+/).filter(Boolean);
             if (!tokens.length) return true;
             return tokens.some((token) => {
                 if (token.includes('/')) {
@@ -358,8 +358,8 @@
                         const m = parseMonth(parts[1]);
                         const y = parseYear(parts[2]);
                         return d === Number(segmentDay) &&
-                            (m == null || segmentMonth == null || m === Number(segmentMonth)) &&
-                            (y == null || segmentYear == null || y === Number(segmentYear));
+                            (m == null || (segmentMonth != null && m === Number(segmentMonth))) &&
+                            (y == null || (segmentYear != null && y === Number(segmentYear)));
                     }
                     if (parts.length === 2) {
                         const rangeMatch = parts[0].match(/^(\d{1,2})\s*-\s*(\d{1,2})$/);
@@ -370,11 +370,11 @@
                             const start = Math.min(d1, d2);
                             const end = Math.max(d1, d2);
                             return Number(segmentDay) >= start && Number(segmentDay) <= end &&
-                                (m == null || segmentMonth == null || m === Number(segmentMonth));
+                                (m == null || (segmentMonth != null && m === Number(segmentMonth)));
                         }
                         const d = Number(parts[0]);
                         return d === Number(segmentDay) &&
-                            (m == null || segmentMonth == null || m === Number(segmentMonth));
+                            (m == null || (segmentMonth != null && m === Number(segmentMonth)));
                     }
                 }
                 const rangeMatch = token.match(/^(\d{1,2})\s*-\s*(\d{1,2})$/);
