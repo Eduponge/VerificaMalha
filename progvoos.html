@@ -27,6 +27,8 @@
         .btn-copy { background-color: #2980B9; }
         .btn-copy:hover { background-color: #1f6ea0; }
         .section-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; align-items: center; }
+        .import-help { font-size: 13px; color: #555; margin: 0 0 10px; }
+        #importStatus { font-size: 12px; color: #1e8449; }
 
         /* Table */
         .table-wrapper { overflow-x: auto; }
@@ -82,6 +84,13 @@
         ETD e ETA sobrepõem STD/STA quando preenchidos.
     </p>
 
+    <p class="import-help">Carregue um arquivo <strong>AcftRoute</strong> para preencher automaticamente as etapas. Um novo arquivo substitui as linhas atuais.</p>
+    <div class="section-actions">
+        <input type="file" id="acftRouteFile" accept=".html,.htm,text/html">
+        <button type="button" onclick="importAcftRoute()">⬆️ Extrair AcftRoute</button>
+        <span id="importStatus"></span>
+    </div>
+
     <div class="section-actions">
         <button onclick="generateMessage()">🔄 Gerar Mensagem</button>
         <button class="btn-secondary" onclick="addManualRow()">➕ Adicionar Linha</button>
@@ -117,31 +126,33 @@
 </div>
 
 <script>
+const STORAGE_KEY = 'progvoosData';
 let tableData = [];
 
 function addManualRow() {
-    const i = tableData.length;
     tableData.push({ flight: '', dep: '', arr: '', etd: '', eta: '', date: '' });
+    renderTable();
+}
+
+function renderTable() {
     const tbody = document.getElementById('flightTableBody');
-    const tr = document.createElement('tr');
-    tr.dataset.index = i;
-
-    const makeCell = (field, ph, maxl) =>
-        `<td><input type="text" placeholder="${ph}" maxlength="${maxl}" oninput="syncData(${i},'${field}',this.value)"></td>`;
-
-    tr.innerHTML =
-        makeCell('flight', '4796', 4) +
-        makeCell('dep', 'LUX', 3) +
-        makeCell('arr', 'HKG', 3) +
-        makeCell('etd', 'HHMM', 4) +
-        makeCell('eta', 'HHMM', 4) +
-        makeCell('date', '22AUG', 6) +
-        `<td>` +
-        `<button class="btn-copy" style="padding:3px 8px;font-size:12px;" onclick="duplicateRow(this)" title="Duplicar linha">📋</button> ` +
-        `<button class="btn-secondary" style="padding:3px 8px;font-size:12px;" onclick="removeRow(this)">✕</button>` +
-        `</td>`;
-
-    tbody.appendChild(tr);
+    tbody.innerHTML = tableData.map((data, i) => {
+        const makeCell = (field, ph, maxl) =>
+            `<td><input type="text" placeholder="${ph}" maxlength="${maxl}" value="${escapeHtml(data[field] || '')}" oninput="syncData(${i},'${field}',this.value)"></td>`;
+        return `<tr data-index="${i}">
+            ${makeCell('flight', '4796', 4)}
+            ${makeCell('dep', 'LUX', 3)}
+            ${makeCell('arr', 'HKG', 3)}
+            ${makeCell('etd', 'HHMM', 4)}
+            ${makeCell('eta', 'HHMM', 4)}
+            ${makeCell('date', '22AUG', 6)}
+            <td>
+                <button class="btn-copy" style="padding:3px 8px;font-size:12px;" onclick="duplicateRow(this)" title="Duplicar linha">📋</button>
+                <button class="btn-secondary" style="padding:3px 8px;font-size:12px;" onclick="removeRow(this)">✕</button>
+            </td>
+        </tr>`;
+    }).join('');
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(tableData));
 }
 
 function duplicateRow(btn) {
@@ -156,27 +167,7 @@ function duplicateRow(btn) {
     });
     // Insert copy into tableData after current row
     tableData.splice(idx + 1, 0, rowCopy);
-    // Rebuild tbody from tableData
-    const tbody = document.getElementById('flightTableBody');
-    tbody.innerHTML = '';
-    tableData.forEach((data, i) => {
-        const newTr = document.createElement('tr');
-        newTr.dataset.index = i;
-        const makeCell = (field, ph, maxl) =>
-            `<td><input type="text" placeholder="${ph}" maxlength="${maxl}" value="${data[field] || ''}" oninput="syncData(${i},'${field}',this.value)"></td>`;
-        newTr.innerHTML =
-            makeCell('flight', '4796', 4) +
-            makeCell('dep', 'LUX', 3) +
-            makeCell('arr', 'HKG', 3) +
-            makeCell('etd', 'HHMM', 4) +
-            makeCell('eta', 'HHMM', 4) +
-            makeCell('date', '22AUG', 6) +
-            `<td>` +
-            `<button class="btn-copy" style="padding:3px 8px;font-size:12px;" onclick="duplicateRow(this)" title="Duplicar linha">📋</button> ` +
-            `<button class="btn-secondary" style="padding:3px 8px;font-size:12px;" onclick="removeRow(this)">✕</button>` +
-            `</td>`;
-        tbody.appendChild(newTr);
-    });
+    renderTable();
 }
 
 function removeRow(btn) {
@@ -186,6 +177,7 @@ function removeRow(btn) {
     tr.remove();
     // Reindex remaining rows
     reindexTable();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(tableData));
 }
 
 function reindexTable() {
@@ -203,20 +195,96 @@ function reindexTable() {
             }
         });
         tableData.push(rowData);
-        // Update remove button handler
-        const btn = tr.querySelector('button');
-        if (btn) btn.onclick = () => removeRow(btn);
+        // Update the remove button handler after the row indexes change.
+        const removeButton = tr.querySelectorAll('button')[1];
+        if (removeButton) removeButton.onclick = () => removeRow(removeButton);
     });
 }
 
 function syncData(i, field, val) {
-    if (tableData[i]) tableData[i][field] = val.trim().toUpperCase();
+    if (tableData[i]) {
+        tableData[i][field] = val.trim().toUpperCase();
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(tableData));
+    }
 }
 
 function clearTable() {
     tableData = [];
     document.getElementById('flightTableBody').innerHTML = '';
     document.getElementById('msgSection').style.display = 'none';
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem('progvoosMessage');
+}
+
+function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[char]));
+}
+
+function normalizeRouteText(text) {
+    return text.replace(/\u00a0/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function routeDate(value) {
+    const match = value.match(/(?:[A-Z]{3})?(\d{1,2})([A-Z]{3})/i);
+    return match ? `${match[1].padStart(2, '0')}${match[2].toUpperCase()}` : '';
+}
+
+function routeTime(value) {
+    const match = value.match(/(\d{1,2}):(\d{2})/);
+    return match ? `${match[1].padStart(2, '0')}${match[2]}` : '';
+}
+
+function extractAcftRouteRows(html) {
+    const source = new DOMParser().parseFromString(html, 'text/html');
+    const text = normalizeRouteText(source.body ? source.body.textContent : '');
+    const rows = [];
+    const schedulePattern = /(\d{3,4})\s+([A-Z]{3})\s+([A-Z]{3})\s+(\d{1,2}:\d{2})\s+(\d{1,2}:\d{2})\s+([A-Z]{3}\d{1,2}[A-Z]{3})/gi;
+    let schedule;
+    while ((schedule = schedulePattern.exec(text))) {
+        const afterSchedule = text.slice(schedule.index + schedule[0].length);
+        const actual = afterSchedule.match(/^(?:\s*)([EA])\s*(\d{1,2}:\d{2})\s+([EA])\s*(\d{1,2}:\d{2})\s+([A-Z]{3}\d{1,2}[A-Z]{3})/i);
+        const depTime = actual ? routeTime(actual[2]) : routeTime(schedule[4]);
+        const arrTime = actual ? routeTime(actual[4]) : routeTime(schedule[5]);
+        const date = routeDate(actual ? actual[5] : schedule[6]);
+        if (depTime && arrTime && date) {
+            rows.push({
+                flight: schedule[1],
+                dep: schedule[2].toUpperCase(),
+                arr: schedule[3].toUpperCase(),
+                etd: depTime,
+                eta: arrTime,
+                date
+            });
+        }
+    }
+    return rows;
+}
+
+function importAcftRoute() {
+    const input = document.getElementById('acftRouteFile');
+    const file = input.files[0];
+    const status = document.getElementById('importStatus');
+    if (!file) {
+        status.textContent = 'Selecione um arquivo AcftRoute.';
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+        const imported = extractAcftRouteRows(reader.result);
+        if (!imported.length) {
+            status.textContent = 'Nenhuma etapa reconhecida no arquivo.';
+            return;
+        }
+        tableData = imported;
+        renderTable();
+        document.getElementById('msgSection').style.display = 'none';
+        localStorage.removeItem('progvoosMessage');
+        status.textContent = `${imported.length} etapa(s) extraída(s).`;
+    };
+    reader.onerror = () => { status.textContent = 'Não foi possível ler o arquivo.'; };
+    reader.readAsText(file);
 }
 
 // ============================================================
@@ -271,6 +339,7 @@ function generateMessage() {
     const msg = lines.join('\n');
     document.getElementById('msgOutput').textContent = msg;
     document.getElementById('msgSection').style.display = 'block';
+    localStorage.setItem('progvoosMessage', msg);
     document.getElementById('msgSection').scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -309,8 +378,20 @@ function showCopyStatus() {
     setTimeout(() => { el.style.display = 'none'; }, 2500);
 }
 
-// Start with one empty row
-addManualRow();
+// Keep the schedule while navigating between application functions.
+try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (Array.isArray(saved) && saved.length) tableData = saved;
+} catch (error) {
+    tableData = [];
+}
+if (tableData.length) renderTable();
+else addManualRow();
+const savedMessage = localStorage.getItem('progvoosMessage');
+if (savedMessage) {
+    document.getElementById('msgOutput').textContent = savedMessage;
+    document.getElementById('msgSection').style.display = 'block';
+}
 </script>
 </body>
 </html>
