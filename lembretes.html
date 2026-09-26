@@ -538,7 +538,7 @@
                 const etdText = formatDatetime(m.etd);
                 const encodedId = encodeURIComponent(m.id);
                 return `
-                    <button type="button" class="mvt-item ${statusCls}" onclick="markMvtAsSent(decodeURIComponent('${escapeHtml(encodedId)}'))">
+                    <button type="button" class="mvt-item ${statusCls}" data-id="${escapeHtml(encodedId)}" onclick="markMvtAsSent(decodeURIComponent(this.dataset.id))">
                         <div class="mvt-title">✈ ${escapeHtml(m.registration)} · ${escapeHtml(m.origin)} → ${escapeHtml(m.destination)}</div>
                         <div class="mvt-etd">ETD: ${escapeHtml(etdText)}</div>
                         <div>${m.sent ? '✅ Enviado' : (isOverdue ? '🔴 ETD +15 min' : '🟡 Pendente')}</div>
