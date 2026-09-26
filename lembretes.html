@@ -95,6 +95,21 @@
         .collapsible-toggle:hover { background: #f0e6ff; }
         .collapsible-body { overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease; max-height: 1000px; opacity: 1; }
         .collapsible-body.collapsed { max-height: 0; opacity: 0; }
+        /* MVT section */
+        .mvt-section { background: #fff; padding: 20px; border-radius: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .mvt-header-actions { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+        .mvt-clear-btn { margin-left: auto; }
+        .mvt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+        .mvt-item { border: 1px solid #d5d8dc; border-radius: 4px; padding: 8px 10px; cursor: pointer; background: #f8f9f9; font-size: 12px; line-height: 1.4; text-align: left; width: 100%; font-family: inherit; }
+        .mvt-item:hover { border-color: #8E44AD; }
+        .mvt-item:focus-visible { outline: 2px solid #8E44AD; outline-offset: 1px; border-color: #8E44AD; }
+        .mvt-item .mvt-title { font-weight: bold; color: #2c3e50; }
+        .mvt-item .mvt-etd { color: #566573; font-weight: bold; }
+        .mvt-item.status-overdue { background: #FDEDEC; border-color: #E74C3C; }
+        .mvt-item.status-pending { background: #FEF9E7; border-color: #F39C12; }
+        .mvt-item.status-sent { background: #EAFAF1; border-color: #27AE60; }
+        .mvt-empty { color: #7f8c8d; font-size: 13px; padding: 8px 0; }
+        .sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
     </style>
 </head>
 <body>
@@ -120,9 +135,9 @@
     <div class="form-section">
         <div class="collapsible-header" onclick="toggleFormSection()">
             <h3>Cadastrar / Editar Lembrete</h3>
-            <button class="collapsible-toggle" id="formToggleBtn" onclick="event.stopPropagation(); toggleFormSection()">▲ Recolher</button>
+            <button class="collapsible-toggle" id="formToggleBtn" onclick="event.stopPropagation(); toggleFormSection()">▼ Expandir</button>
         </div>
-        <div class="collapsible-body" id="formBody">
+        <div class="collapsible-body collapsed" id="formBody">
         <div class="form-grid">
             <input type="hidden" id="editingId" value="">
 
@@ -178,6 +193,21 @@
         </div><!-- end collapsible-body -->
     </div>
 
+    <div class="mvt-section">
+        <div class="collapsible-header" onclick="toggleMvtSection()">
+            <h3>MVT</h3>
+            <button class="collapsible-toggle" id="mvtToggleBtn" aria-controls="mvtBody" aria-expanded="false" onclick="event.stopPropagation(); toggleMvtSection()">▼ Expandir</button>
+        </div>
+        <div class="sr-only" id="mvtA11yHint">Flags de envio criadas ao dispensar Crew Wakeup.</div>
+        <div class="collapsible-body collapsed" id="mvtBody">
+            <div class="mvt-header-actions">
+                <div class="hint" style="margin:0;" id="mvtHint">Flags de envio criadas ao dispensar Crew Wakeup.</div>
+                <button type="button" class="delete-btn mvt-clear-btn" id="clearMvtBtn" aria-describedby="mvtA11yHint">Apagar todos (inclui enviados)</button>
+            </div>
+            <div id="mvtList" class="mvt-grid"></div>
+        </div>
+    </div>
+
     <!-- Event list -->
     <div class="list-section">
         <div class="list-header">
@@ -226,6 +256,8 @@
 
     <script>
         const STORAGE_KEY = 'lembretesV1';
+        const MVT_STORAGE_KEY = 'mvtFlagsV1';
+        const MVT_OVERDUE_AFTER_ETD_MS = 15 * 60 * 1000; // 15 minutes after ETD
         const UPCOMING_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
         const PRE_ALERT_WINDOW_MS = 2 * 60 * 1000; // 2 minutes — pré-alerta
         const REFRESH_INTERVAL_MS = 30000; // refresh every 30 seconds
@@ -399,6 +431,201 @@
             localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
         }
 
+        function getMvtQueue() {
+            try {
+                const data = JSON.parse(localStorage.getItem(MVT_STORAGE_KEY) || '[]');
+                return Array.isArray(data) ? data : [];
+            } catch (e) {
+                return [];
+            }
+        }
+
+        function setMvtQueue(list) {
+            localStorage.setItem(MVT_STORAGE_KEY, JSON.stringify(list));
+        }
+
+        function parseLocalDatetimeValue(value) {
+            const m = String(value || '').trim().match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+            if (!m) return null;
+            const dt = new Date(
+                Number(m[1]),
+                Number(m[2]) - 1,
+                Number(m[3]),
+                Number(m[4]),
+                Number(m[5]),
+                Number(m[6] || 0),
+                0
+            );
+            return Number.isNaN(dt.getTime()) ? null : dt;
+        }
+
+        function parseFullEtdDatetime(etdRaw) {
+            if (!etdRaw) return null;
+            return parseLocalDatetimeValue(etdRaw);
+        }
+
+        function expandEtdTimeOnAlertDate(etdRaw, alertDatetime) {
+            const hm = String(etdRaw || '').trim().match(/^(\d{1,2}):(\d{2})$/);
+            if (!hm) return null;
+            const alertDate = new Date(alertDatetime);
+            if (Number.isNaN(alertDate.getTime())) return null;
+            const etdDate = new Date(alertDate);
+            etdDate.setHours(parseInt(hm[1], 10), parseInt(hm[2], 10), 0, 0);
+            if (etdDate.getTime() < alertDate.getTime()) etdDate.setDate(etdDate.getDate() + 1);
+            return etdDate;
+        }
+
+        function getEventEtdDate(event) {
+            const etdRaw = String(event.etd || '').trim();
+            if (!etdRaw) return null;
+            return parseFullEtdDatetime(etdRaw) || expandEtdTimeOnAlertDate(etdRaw, event.datetime);
+        }
+
+        function createMvtFromCrewWakeup(event) {
+            if (!event || event.category !== 'Crew Wakeup') return;
+            if (!event.dismissed) return;
+            const etdDate = getEventEtdDate(event);
+            if (!etdDate) return;
+            const etdMs = etdDate.getTime();
+            const sourceEventId = String(event.id || '');
+            if (!sourceEventId) return;
+            const list = getMvtQueue();
+            const isFromSameEvent = (m) => {
+                const sameSource = String(m.sourceEventId || '') === sourceEventId;
+                const legacyMatch = !m.sourceEventId && String(m.id || '').endsWith(`|${sourceEventId}`);
+                return sameSource || legacyMatch;
+            };
+            const cleanList = list.filter((m) => !isFromSameEvent(m));
+            const id = [
+                event.registration || 'SEM-REG',
+                event.origin || '',
+                event.destination || '',
+                String(etdMs || 0),
+                sourceEventId
+            ].join('|');
+            cleanList.push({
+                id,
+                sourceEventId,
+                registration: event.registration || '—',
+                origin: event.origin || '—',
+                destination: event.destination || '—',
+                etdMs,
+                sent: false
+            });
+            setMvtQueue(cleanList);
+            renderMvtList();
+        }
+
+        function removeMvtFromCrewWakeup(event) {
+            if (!event || event.category !== 'Crew Wakeup') return;
+            const list = getMvtQueue();
+            const sourceEventId = String(event.id || '');
+            if (!sourceEventId) return;
+            const filtered = list.filter((m) => {
+                const sameSource = String(m.sourceEventId || '') === sourceEventId;
+                const legacyMatch = !m.sourceEventId && String(m.id || '').endsWith(`|${sourceEventId}`);
+                return !(sameSource || legacyMatch);
+            });
+            if (filtered.length === list.length) return;
+            setMvtQueue(filtered);
+            renderMvtList();
+        }
+
+        function toggleMvtSection() {
+            const body = document.getElementById('mvtBody');
+            const btn = document.getElementById('mvtToggleBtn');
+            if (body.classList.contains('collapsed')) {
+                body.classList.remove('collapsed');
+                btn.textContent = '▲ Recolher';
+                btn.setAttribute('aria-expanded', 'true');
+            } else {
+                body.classList.add('collapsed');
+                btn.textContent = '▼ Expandir';
+                btn.setAttribute('aria-expanded', 'false');
+            }
+        }
+
+        function markMvtAsSent(id) {
+            const list = getMvtQueue();
+            const item = list.find((m) => m.id === id);
+            if (!item || item.sent) return;
+            item.sent = true;
+            setMvtQueue(list);
+            renderMvtList();
+        }
+
+        function clearAllMvt() {
+            const list = getMvtQueue();
+            if (!list.length) return;
+            if (!confirm('Deseja apagar todas as flags de MVT (incluindo as enviadas)?')) return;
+            setMvtQueue([]);
+            renderMvtList();
+        }
+
+        function renderMvtList() {
+            const container = document.getElementById('mvtList');
+            if (!container) return;
+            const now = Date.now();
+            const items = getMvtQueue().map((m) => {
+                const fromNumber = Number(m.etdMs);
+                const parsedMs = Number.isFinite(fromNumber) && fromNumber > 0
+                    ? fromNumber
+                    : new Date(m.etd || '').getTime();
+                return { ...m, etdMs: Number.isNaN(parsedMs) ? null : parsedMs };
+            }).sort((a, b) => {
+                const aMs = a.etdMs == null ? Number.POSITIVE_INFINITY : a.etdMs;
+                const bMs = b.etdMs == null ? Number.POSITIVE_INFINITY : b.etdMs;
+                return aMs - bMs;
+            });
+            container.innerHTML = '';
+            if (!items.length) {
+                const empty = document.createElement('div');
+                empty.className = 'mvt-empty';
+                empty.textContent = 'Nenhuma flag de MVT pendente.';
+                container.appendChild(empty);
+                return;
+            }
+            items.forEach((m) => {
+                const isOverdue = !m.sent && m.etdMs != null && now > (m.etdMs + MVT_OVERDUE_AFTER_ETD_MS);
+                const statusCls = m.sent ? 'status-sent' : (isOverdue ? 'status-overdue' : 'status-pending');
+                const etdText = m.etdMs != null ? formatDatetime(new Date(m.etdMs)) : '—';
+                const statusText = m.sent ? 'Enviado' : (isOverdue ? 'Atrasado (ETD +15 min)' : 'Pendente');
+                const iconStatus = m.sent ? '✅ Enviado' : (isOverdue ? '🔴 ETD +15 min' : '🟡 Pendente');
+                const ariaLabel = `MVT ${m.registration} ${m.origin} para ${m.destination}. ETD ${etdText}. Status ${statusText}.`;
+
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = `mvt-item ${statusCls}`;
+                btn.setAttribute('aria-label', ariaLabel);
+                btn.setAttribute('aria-describedby', 'mvtA11yHint');
+
+                const title = document.createElement('div');
+                title.className = 'mvt-title';
+                title.textContent = `✈ ${m.registration} · ${m.origin} → ${m.destination}`;
+
+                const etd = document.createElement('div');
+                etd.className = 'mvt-etd';
+                etd.textContent = `ETD: ${etdText}`;
+
+                const iconLine = document.createElement('div');
+                iconLine.setAttribute('aria-hidden', 'true');
+                iconLine.textContent = iconStatus;
+
+                const statusLine = document.createElement('div');
+                statusLine.className = 'mvt-status-text';
+                statusLine.textContent = `Status: ${statusText}`;
+
+                btn.appendChild(title);
+                btn.appendChild(etd);
+                btn.appendChild(iconLine);
+                btn.appendChild(statusLine);
+                btn.addEventListener('click', () => {
+                    markMvtAsSent(m.id);
+                });
+                container.appendChild(btn);
+            });
+        }
+
         function getStatus(event) {
             if (event.dismissed) return 'dismissed';
             if (!event.datetime) return 'future';
@@ -559,6 +786,7 @@
                 list.push(input);
             }
             setEvents(list);
+            if (input.dismissed && input.category === 'Crew Wakeup') createMvtFromCrewWakeup(input);
             renderList();
             renderAlerts();
             clearForm();
@@ -615,8 +843,11 @@
             const list = getEvents();
             const item = list.find((e) => e.id === id);
             if (!item) return;
+            const wasDismissed = !!item.dismissed;
             item.dismissed = !item.dismissed;
             setEvents(list);
+            if (!wasDismissed && item.dismissed) createMvtFromCrewWakeup(item);
+            if (wasDismissed && !item.dismissed) removeMvtFromCrewWakeup(item);
             renderList();
             renderAlerts();
         }
@@ -625,8 +856,10 @@
             const list = getEvents();
             const item = list.find((e) => e.id === id);
             if (!item) return;
+            const wasDismissed = !!item.dismissed;
             item.dismissed = true;
             setEvents(list);
+            if (!wasDismissed && item.dismissed) createMvtFromCrewWakeup(item);
             renderList();
             renderAlerts();
         }
@@ -794,15 +1027,18 @@
             updateClock();
             renderAlerts();
             renderList();
+            renderMvtList();
         }
 
-        window.onload = function() {
+        window.addEventListener('load', function() {
             const deleteAllOverdueBtn = document.getElementById('deleteAllOverdueBtn');
             if (deleteAllOverdueBtn) deleteAllOverdueBtn.addEventListener('click', deleteAllOverdueEvents);
+            const clearMvtBtn = document.getElementById('clearMvtBtn');
+            if (clearMvtBtn) clearMvtBtn.addEventListener('click', clearAllMvt);
             purgeSampleEvents();
             tick();
             alertInterval = setInterval(tick, REFRESH_INTERVAL_MS);
-        };
+        });
 
         // ── DayList PDF import ─────────────────────────────────────────────────
 
