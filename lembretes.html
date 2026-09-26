@@ -100,7 +100,7 @@
         .mvt-header-actions { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
         .mvt-clear-btn { margin-left: auto; }
         .mvt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
-        .mvt-item { border: 1px solid #d5d8dc; border-radius: 4px; padding: 8px 10px; cursor: pointer; background: #f8f9f9; font-size: 12px; line-height: 1.4; }
+        .mvt-item { border: 1px solid #d5d8dc; border-radius: 4px; padding: 8px 10px; cursor: pointer; background: #f8f9f9; font-size: 12px; line-height: 1.4; text-align: left; width: 100%; font-family: inherit; }
         .mvt-item:hover { border-color: #8E44AD; }
         .mvt-item .mvt-title { font-weight: bold; color: #2c3e50; }
         .mvt-item .mvt-etd { color: #566573; font-weight: bold; }
@@ -538,11 +538,11 @@
                 const etdText = formatDatetime(m.etd);
                 const encodedId = encodeURIComponent(m.id);
                 return `
-                    <div class="mvt-item ${statusCls}" data-id="${escapeHtml(encodedId)}" onclick="markMvtAsSent(decodeURIComponent(this.dataset.id))">
+                    <button type="button" class="mvt-item ${statusCls}" onclick="markMvtAsSent(decodeURIComponent('${escapeHtml(encodedId)}'))">
                         <div class="mvt-title">✈ ${escapeHtml(m.registration)} · ${escapeHtml(m.origin)} → ${escapeHtml(m.destination)}</div>
                         <div class="mvt-etd">ETD: ${escapeHtml(etdText)}</div>
                         <div>${m.sent ? '✅ Enviado' : (isOverdue ? '🔴 ETD +15 min' : '🟡 Pendente')}</div>
-                    </div>
+                    </button>
                 `;
             }).join('');
         }
