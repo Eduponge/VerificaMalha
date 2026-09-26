@@ -199,8 +199,8 @@
         </div>
         <div class="collapsible-body collapsed" id="mvtBody">
             <div class="mvt-header-actions">
-                <div class="hint" style="margin:0;">Flags de envio criadas ao dispensar Crew Wakeup.</div>
-                <button class="delete-btn mvt-clear-btn" id="clearMvtBtn">Apagar todos</button>
+                <div class="hint" style="margin:0;" id="mvtHint">Flags de envio criadas ao dispensar Crew Wakeup.</div>
+                <button class="delete-btn mvt-clear-btn" id="clearMvtBtn" aria-describedby="mvtHint">Apagar todos (inclui enviados)</button>
             </div>
             <div id="mvtList" class="mvt-grid"></div>
         </div>
@@ -510,6 +510,7 @@
             if (!event || event.category !== 'Crew Wakeup') return;
             const list = getMvtQueue();
             const sourceEventId = String(event.id || '');
+            if (!sourceEventId) return;
             const filtered = list.filter((m) => String(m.sourceEventId || '') !== sourceEventId);
             if (filtered.length === list.length) return;
             setMvtQueue(filtered);
@@ -580,6 +581,7 @@
                 btn.type = 'button';
                 btn.className = `mvt-item ${statusCls}`;
                 btn.setAttribute('aria-label', ariaLabel);
+                btn.setAttribute('aria-describedby', 'mvtHint');
 
                 const title = document.createElement('div');
                 title.className = 'mvt-title';
