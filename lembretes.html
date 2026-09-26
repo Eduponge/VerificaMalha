@@ -536,7 +536,7 @@
                 const statusCls = m.sent ? 'status-sent' : (isOverdue ? 'status-overdue' : 'status-pending');
                 const etdText = formatDatetime(m.etd);
                 return `
-                    <div class="mvt-item ${statusCls}" onclick="markMvtAsSent('${escapeHtml(m.id)}')">
+                    <div class="mvt-item ${statusCls}" data-id="${escapeHtml(m.id)}" onclick="markMvtAsSent(this.dataset.id)">
                         <div class="mvt-title">✈ ${escapeHtml(m.registration)} · ${escapeHtml(m.origin)} → ${escapeHtml(m.destination)}</div>
                         <div class="mvt-etd">ETD: ${escapeHtml(etdText)}</div>
                         <div>${m.sent ? '✅ Enviado' : (isOverdue ? '🔴 ETD +15 min' : '🟡 Pendente')}</div>
