@@ -547,7 +547,7 @@
                     <button type="button" class="mvt-item ${statusCls}" data-idx="${idx}" aria-label="${escapeHtml(ariaLabel)}">
                         <div class="mvt-title">✈ ${escapeHtml(m.registration)} · ${escapeHtml(m.origin)} → ${escapeHtml(m.destination)}</div>
                         <div class="mvt-etd">ETD: ${escapeHtml(etdText)}</div>
-                        <div>${m.sent ? '✅ Enviado' : (isOverdue ? '🔴 ETD +15 min' : '🟡 Pendente')}</div>
+                        <div aria-hidden="true">${m.sent ? '✅ Enviado' : (isOverdue ? '🔴 ETD +15 min' : '🟡 Pendente')}</div>
                         <div class="mvt-status-text">Status: ${escapeHtml(statusText)}</div>
                     </button>
                 `;
