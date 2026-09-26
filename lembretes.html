@@ -200,7 +200,7 @@
         <div class="collapsible-body collapsed" id="mvtBody">
             <div class="mvt-header-actions">
                 <div class="hint" style="margin:0;" id="mvtHint">Flags de envio criadas ao dispensar Crew Wakeup.</div>
-                <button class="delete-btn mvt-clear-btn" id="clearMvtBtn" aria-describedby="mvtHint">Apagar todos (inclui enviados)</button>
+                <button type="button" class="delete-btn mvt-clear-btn" id="clearMvtBtn" aria-describedby="mvtHint">Apagar todos (inclui enviados)</button>
             </div>
             <div id="mvtList" class="mvt-grid"></div>
         </div>
@@ -511,7 +511,11 @@
             const list = getMvtQueue();
             const sourceEventId = String(event.id || '');
             if (!sourceEventId) return;
-            const filtered = list.filter((m) => String(m.sourceEventId || '') !== sourceEventId);
+            const filtered = list.filter((m) => {
+                const sameSource = String(m.sourceEventId || '') === sourceEventId;
+                if (!sameSource) return true;
+                return !!m.sent;
+            });
             if (filtered.length === list.length) return;
             setMvtQueue(filtered);
             renderMvtList();
