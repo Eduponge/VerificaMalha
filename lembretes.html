@@ -533,32 +533,51 @@
             }).sort((a, b) => {
                 return a.etdMs - b.etdMs;
             });
+            container.innerHTML = '';
             if (!items.length) {
-                container.innerHTML = '<div class="mvt-empty">Nenhuma flag de MVT pendente.</div>';
+                const empty = document.createElement('div');
+                empty.className = 'mvt-empty';
+                empty.textContent = 'Nenhuma flag de MVT pendente.';
+                container.appendChild(empty);
                 return;
             }
-            container.innerHTML = items.map((m, idx) => {
+            items.forEach((m, idx) => {
                 const isOverdue = !m.sent && now > (m.etdMs + MVT_OVERDUE_AFTER_ETD_MS);
                 const statusCls = m.sent ? 'status-sent' : (isOverdue ? 'status-overdue' : 'status-pending');
                 const etdText = m.etdMs ? formatDatetime(new Date(m.etdMs)) : '—';
                 const statusText = m.sent ? 'Enviado' : (isOverdue ? 'Atrasado (ETD +15 min)' : 'Pendente');
-                const ariaLabel = `MVT ${m.registration} ${m.origin} para ${m.destination}. ETD ${etdText}.`;
-                return `
-                    <button type="button" class="mvt-item ${statusCls}" data-idx="${idx}" aria-label="${escapeHtml(ariaLabel)}">
-                        <div class="mvt-title">✈ ${escapeHtml(m.registration)} · ${escapeHtml(m.origin)} → ${escapeHtml(m.destination)}</div>
-                        <div class="mvt-etd">ETD: ${escapeHtml(etdText)}</div>
-                        <div aria-hidden="true">${m.sent ? '✅ Enviado' : (isOverdue ? '🔴 ETD +15 min' : '🟡 Pendente')}</div>
-                        <div class="mvt-status-text">Status: ${escapeHtml(statusText)}</div>
-                    </button>
-                `;
-            }).join('');
-            const buttons = container.querySelectorAll('.mvt-item[data-idx]');
-            buttons.forEach((btn) => {
+                const iconStatus = m.sent ? '✅ Enviado' : (isOverdue ? '🔴 ETD +15 min' : '🟡 Pendente');
+                const ariaLabel = `MVT ${m.registration} ${m.origin} para ${m.destination}. ETD ${etdText}. Status ${statusText}.`;
+
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = `mvt-item ${statusCls}`;
+                btn.setAttribute('aria-label', ariaLabel);
+
+                const title = document.createElement('div');
+                title.className = 'mvt-title';
+                title.textContent = `✈ ${m.registration} · ${m.origin} → ${m.destination}`;
+
+                const etd = document.createElement('div');
+                etd.className = 'mvt-etd';
+                etd.textContent = `ETD: ${etdText}`;
+
+                const iconLine = document.createElement('div');
+                iconLine.setAttribute('aria-hidden', 'true');
+                iconLine.textContent = iconStatus;
+
+                const statusLine = document.createElement('div');
+                statusLine.className = 'mvt-status-text';
+                statusLine.textContent = `Status: ${statusText}`;
+
+                btn.appendChild(title);
+                btn.appendChild(etd);
+                btn.appendChild(iconLine);
+                btn.appendChild(statusLine);
                 btn.addEventListener('click', () => {
-                    const idx = Number(btn.dataset.idx);
-                    if (!Number.isInteger(idx) || !items[idx]) return;
                     markMvtAsSent(items[idx].id);
                 });
+                container.appendChild(btn);
             });
         }
 
