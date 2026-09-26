@@ -539,7 +539,7 @@
             container.innerHTML = items.map((m, idx) => {
                 const isOverdue = !m.sent && now > (m.etdMs + MVT_OVERDUE_AFTER_ETD_MS);
                 const statusCls = m.sent ? 'status-sent' : (isOverdue ? 'status-overdue' : 'status-pending');
-                const etdText = m.etdMs ? formatDatetime(new Date(m.etdMs).toISOString()) : '—';
+                const etdText = m.etdMs ? formatDatetime(new Date(m.etdMs)) : '—';
                 const statusText = m.sent ? 'Enviado' : (isOverdue ? 'Atrasado (ETD +15 min)' : 'Pendente');
                 const ariaLabel = `MVT ${m.registration} ${m.origin} para ${m.destination}. ETD ${etdText}. Status ${statusText}.`;
                 return `
