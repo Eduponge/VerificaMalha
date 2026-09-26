@@ -481,27 +481,43 @@
 
         function createMvtFromCrewWakeup(event) {
             if (!event || event.category !== 'Crew Wakeup') return;
+            if (!event.dismissed) return;
             const etdDate = getEventEtdDate(event);
             if (!etdDate) return;
             const etdMs = etdDate.getTime();
+            const list = getMvtQueue();
+            const sourceEventId = String(event.id || '');
+            if (!sourceEventId) return;
             const id = [
                 event.registration || 'SEM-REG',
                 event.origin || '',
                 event.destination || '',
                 String(etdMs || 0),
-                event.id || ''
+                sourceEventId
             ].join('|');
-            const list = getMvtQueue();
-            if (list.some((m) => m.id === id)) return;
-            list.push({
-                id,
-                sourceEventId: event.id || '',
-                registration: event.registration || '—',
-                origin: event.origin || '—',
-                destination: event.destination || '—',
-                etdMs,
-                sent: false
-            });
+            const existingIndex = list.findIndex((m) => String(m.sourceEventId || '') === sourceEventId);
+            if (existingIndex >= 0) {
+                const prev = list[existingIndex];
+                list[existingIndex] = {
+                    ...prev,
+                    id,
+                    sourceEventId,
+                    registration: event.registration || '—',
+                    origin: event.origin || '—',
+                    destination: event.destination || '—',
+                    etdMs
+                };
+            } else {
+                list.push({
+                    id,
+                    sourceEventId,
+                    registration: event.registration || '—',
+                    origin: event.origin || '—',
+                    destination: event.destination || '—',
+                    etdMs,
+                    sent: false
+                });
+            }
             setMvtQueue(list);
             renderMvtList();
         }
@@ -545,7 +561,7 @@
         function clearAllMvt() {
             const list = getMvtQueue();
             if (!list.length) return;
-            if (!confirm('Deseja apagar todas as flags de MVT?')) return;
+            if (!confirm('Deseja apagar todas as flags de MVT (incluindo as enviadas)?')) return;
             setMvtQueue([]);
             renderMvtList();
         }
@@ -774,6 +790,7 @@
                 list.push(input);
             }
             setEvents(list);
+            if (input.dismissed && input.category === 'Crew Wakeup') createMvtFromCrewWakeup(input);
             renderList();
             renderAlerts();
             clearForm();
