@@ -541,7 +541,7 @@
                 container.appendChild(empty);
                 return;
             }
-            items.forEach((m, idx) => {
+            items.forEach((m) => {
                 const isOverdue = !m.sent && now > (m.etdMs + MVT_OVERDUE_AFTER_ETD_MS);
                 const statusCls = m.sent ? 'status-sent' : (isOverdue ? 'status-overdue' : 'status-pending');
                 const etdText = m.etdMs ? formatDatetime(new Date(m.etdMs)) : '—';
@@ -575,7 +575,7 @@
                 btn.appendChild(iconLine);
                 btn.appendChild(statusLine);
                 btn.addEventListener('click', () => {
-                    markMvtAsSent(items[idx].id);
+                    markMvtAsSent(m.id);
                 });
                 container.appendChild(btn);
             });
