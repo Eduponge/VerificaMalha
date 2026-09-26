@@ -495,6 +495,7 @@
             if (list.some((m) => m.id === id)) return;
             list.push({
                 id,
+                sourceEventId: event.id || '',
                 registration: event.registration || '—',
                 origin: event.origin || '—',
                 destination: event.destination || '—',
@@ -508,8 +509,8 @@
         function removeMvtFromCrewWakeup(event) {
             if (!event || event.category !== 'Crew Wakeup') return;
             const list = getMvtQueue();
-            const suffix = `|${event.id || ''}`;
-            const filtered = list.filter((m) => !String(m.id || '').endsWith(suffix));
+            const sourceEventId = String(event.id || '');
+            const filtered = list.filter((m) => String(m.sourceEventId || '') !== sourceEventId);
             if (filtered.length === list.length) return;
             setMvtQueue(filtered);
             renderMvtList();
@@ -553,9 +554,11 @@
                 const parsedMs = Number.isFinite(fromNumber) && fromNumber > 0
                     ? fromNumber
                     : new Date(m.etd || '').getTime();
-                return { ...m, etdMs: Number.isNaN(parsedMs) ? 0 : parsedMs };
+                return { ...m, etdMs: Number.isNaN(parsedMs) ? null : parsedMs };
             }).sort((a, b) => {
-                return a.etdMs - b.etdMs;
+                const aMs = a.etdMs == null ? Number.POSITIVE_INFINITY : a.etdMs;
+                const bMs = b.etdMs == null ? Number.POSITIVE_INFINITY : b.etdMs;
+                return aMs - bMs;
             });
             container.innerHTML = '';
             if (!items.length) {
@@ -566,9 +569,9 @@
                 return;
             }
             items.forEach((m) => {
-                const isOverdue = !m.sent && now > (m.etdMs + MVT_OVERDUE_AFTER_ETD_MS);
+                const isOverdue = !m.sent && m.etdMs != null && now > (m.etdMs + MVT_OVERDUE_AFTER_ETD_MS);
                 const statusCls = m.sent ? 'status-sent' : (isOverdue ? 'status-overdue' : 'status-pending');
-                const etdText = m.etdMs ? formatDatetime(new Date(m.etdMs)) : '—';
+                const etdText = m.etdMs != null ? formatDatetime(new Date(m.etdMs)) : '—';
                 const statusText = m.sent ? 'Enviado' : (isOverdue ? 'Atrasado (ETD +15 min)' : 'Pendente');
                 const iconStatus = m.sent ? '✅ Enviado' : (isOverdue ? '🔴 ETD +15 min' : '🟡 Pendente');
                 const ariaLabel = `MVT ${m.registration} ${m.origin} para ${m.destination}. ETD ${etdText}. Status ${statusText}.`;
