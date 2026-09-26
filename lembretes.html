@@ -109,6 +109,7 @@
         .mvt-item.status-pending { background: #FEF9E7; border-color: #F39C12; }
         .mvt-item.status-sent { background: #EAFAF1; border-color: #27AE60; }
         .mvt-empty { color: #7f8c8d; font-size: 13px; padding: 8px 0; }
+        .sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
     </style>
 </head>
 <body>
@@ -195,12 +196,13 @@
     <div class="mvt-section">
         <div class="collapsible-header" onclick="toggleMvtSection()">
             <h3>MVT</h3>
-            <button class="collapsible-toggle" id="mvtToggleBtn" onclick="event.stopPropagation(); toggleMvtSection()">▼ Expandir</button>
+            <button class="collapsible-toggle" id="mvtToggleBtn" aria-controls="mvtBody" aria-expanded="false" onclick="event.stopPropagation(); toggleMvtSection()">▼ Expandir</button>
         </div>
+        <div class="sr-only" id="mvtA11yHint">Flags de envio criadas ao dispensar Crew Wakeup.</div>
         <div class="collapsible-body collapsed" id="mvtBody">
             <div class="mvt-header-actions">
                 <div class="hint" style="margin:0;" id="mvtHint">Flags de envio criadas ao dispensar Crew Wakeup.</div>
-                <button type="button" class="delete-btn mvt-clear-btn" id="clearMvtBtn" aria-describedby="mvtHint">Apagar todos (inclui enviados)</button>
+                <button type="button" class="delete-btn mvt-clear-btn" id="clearMvtBtn" aria-describedby="mvtA11yHint">Apagar todos (inclui enviados)</button>
             </div>
             <div id="mvtList" class="mvt-grid"></div>
         </div>
@@ -493,7 +495,6 @@
                 const legacyMatch = !m.sourceEventId && String(m.id || '').endsWith(`|${sourceEventId}`);
                 return sameSource || legacyMatch;
             };
-            const previous = list.find(isFromSameEvent);
             const cleanList = list.filter((m) => !isFromSameEvent(m));
             const id = [
                 event.registration || 'SEM-REG',
@@ -509,7 +510,7 @@
                 origin: event.origin || '—',
                 destination: event.destination || '—',
                 etdMs,
-                sent: !!(previous && previous.sent)
+                sent: false
             });
             setMvtQueue(cleanList);
             renderMvtList();
@@ -536,9 +537,11 @@
             if (body.classList.contains('collapsed')) {
                 body.classList.remove('collapsed');
                 btn.textContent = '▲ Recolher';
+                btn.setAttribute('aria-expanded', 'true');
             } else {
                 body.classList.add('collapsed');
                 btn.textContent = '▼ Expandir';
+                btn.setAttribute('aria-expanded', 'false');
             }
         }
 
@@ -594,7 +597,7 @@
                 btn.type = 'button';
                 btn.className = `mvt-item ${statusCls}`;
                 btn.setAttribute('aria-label', ariaLabel);
-                btn.setAttribute('aria-describedby', 'mvtHint');
+                btn.setAttribute('aria-describedby', 'mvtA11yHint');
 
                 const title = document.createElement('div');
                 title.className = 'mvt-title';
