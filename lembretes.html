@@ -543,8 +543,10 @@
                 const statusCls = m.sent ? 'status-sent' : (isOverdue ? 'status-overdue' : 'status-pending');
                 const etdText = formatDatetime(m.etd);
                 const encodedId = encodeURIComponent(m.id);
+                const statusText = m.sent ? 'Enviado' : (isOverdue ? 'Atrasado (ETD +15 min)' : 'Pendente');
+                const ariaLabel = `MVT ${m.registration} ${m.origin} para ${m.destination}. ETD ${etdText}. Status ${statusText}.`;
                 return `
-                    <button type="button" class="mvt-item ${statusCls}" data-id="${escapeHtml(encodedId)}">
+                    <button type="button" class="mvt-item ${statusCls}" data-id="${escapeHtml(encodedId)}" aria-label="${escapeHtml(ariaLabel)}">
                         <div class="mvt-title">✈ ${escapeHtml(m.registration)} · ${escapeHtml(m.origin)} → ${escapeHtml(m.destination)}</div>
                         <div class="mvt-etd">ETD: ${escapeHtml(etdText)}</div>
                         <div>${m.sent ? '✅ Enviado' : (isOverdue ? '🔴 ETD +15 min' : '🟡 Pendente')}</div>
