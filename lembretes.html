@@ -441,7 +441,8 @@
         }
 
         function parseFullEtdDatetime(etdRaw) {
-            if (!etdRaw || !etdRaw.includes('T')) return null;
+            if (!etdRaw) return null;
+            if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(etdRaw)) return null;
             const full = new Date(etdRaw);
             return Number.isNaN(full.getTime()) ? null : full;
         }
@@ -463,22 +464,16 @@
             return parseFullEtdDatetime(etdRaw) || expandEtdTimeOnAlertDate(etdRaw, event.datetime);
         }
 
-        function toLocalInputDatetime(dateObj) {
-            if (!(dateObj instanceof Date) || Number.isNaN(dateObj.getTime())) return '';
-            const p = (n) => String(n).padStart(2, '0');
-            return `${dateObj.getFullYear()}-${p(dateObj.getMonth() + 1)}-${p(dateObj.getDate())}T${p(dateObj.getHours())}:${p(dateObj.getMinutes())}`;
-        }
-
         function createMvtFromCrewWakeup(event) {
             if (!event || event.category !== 'Crew Wakeup') return;
             const etdDate = getEventEtdDate(event);
             if (!etdDate) return;
-            const etdIso = toLocalInputDatetime(etdDate);
+            const etdMs = etdDate.getTime();
             const id = [
                 event.registration || 'SEM-REG',
                 event.origin || '',
                 event.destination || '',
-                etdIso || '',
+                String(etdMs || 0),
                 event.id || ''
             ].join('|');
             const list = getMvtQueue();
@@ -488,7 +483,7 @@
                 registration: event.registration || '—',
                 origin: event.origin || '—',
                 destination: event.destination || '—',
-                etd: etdIso,
+                etdMs,
                 sent: false
             });
             setMvtQueue(list);
@@ -529,8 +524,11 @@
             if (!container) return;
             const now = Date.now();
             const items = getMvtQueue().map((m) => {
-                const etdMs = new Date(m.etd).getTime();
-                return { ...m, etdMs: Number.isNaN(etdMs) ? 0 : etdMs };
+                const fromNumber = Number(m.etdMs);
+                const parsedMs = Number.isFinite(fromNumber) && fromNumber > 0
+                    ? fromNumber
+                    : new Date(m.etd || '').getTime();
+                return { ...m, etdMs: Number.isNaN(parsedMs) ? 0 : parsedMs };
             }).sort((a, b) => {
                 return a.etdMs - b.etdMs;
             });
@@ -538,27 +536,27 @@
                 container.innerHTML = '<div class="mvt-empty">Nenhuma flag de MVT pendente.</div>';
                 return;
             }
-            container.innerHTML = items.map((m) => {
+            container.innerHTML = items.map((m, idx) => {
                 const isOverdue = !m.sent && now > (m.etdMs + MVT_OVERDUE_AFTER_ETD_MS);
                 const statusCls = m.sent ? 'status-sent' : (isOverdue ? 'status-overdue' : 'status-pending');
-                const etdText = formatDatetime(m.etd);
-                const encodedId = encodeURIComponent(m.id);
+                const etdText = m.etdMs ? formatDatetime(new Date(m.etdMs).toISOString()) : '—';
                 const statusText = m.sent ? 'Enviado' : (isOverdue ? 'Atrasado (ETD +15 min)' : 'Pendente');
                 const ariaLabel = `MVT ${m.registration} ${m.origin} para ${m.destination}. ETD ${etdText}. Status ${statusText}.`;
                 return `
-                    <button type="button" class="mvt-item ${statusCls}" data-id="${escapeHtml(encodedId)}" aria-label="${escapeHtml(ariaLabel)}">
+                    <button type="button" class="mvt-item ${statusCls}" data-idx="${idx}" aria-label="${escapeHtml(ariaLabel)}">
                         <div class="mvt-title">✈ ${escapeHtml(m.registration)} · ${escapeHtml(m.origin)} → ${escapeHtml(m.destination)}</div>
                         <div class="mvt-etd">ETD: ${escapeHtml(etdText)}</div>
                         <div>${m.sent ? '✅ Enviado' : (isOverdue ? '🔴 ETD +15 min' : '🟡 Pendente')}</div>
+                        <div class="mvt-status-text">Status: ${escapeHtml(statusText)}</div>
                     </button>
                 `;
             }).join('');
-            const buttons = container.querySelectorAll('.mvt-item[data-id]');
+            const buttons = container.querySelectorAll('.mvt-item[data-idx]');
             buttons.forEach((btn) => {
                 btn.addEventListener('click', () => {
-                    const encodedId = btn.dataset.id || '';
-                    if (!encodedId) return;
-                    markMvtAsSent(decodeURIComponent(encodedId));
+                    const idx = Number(btn.dataset.idx);
+                    if (!Number.isInteger(idx) || !items[idx]) return;
+                    markMvtAsSent(items[idx].id);
                 });
             });
         }
