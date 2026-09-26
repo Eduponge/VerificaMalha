@@ -253,6 +253,7 @@
     <script>
         const STORAGE_KEY = 'lembretesV1';
         const MVT_STORAGE_KEY = 'mvtFlagsV1';
+        const MVT_OVERDUE_AFTER_ETD_MS = 15 * 60 * 1000; // 15 minutes after ETD
         const UPCOMING_WINDOW_MS = 30 * 60 * 1000; // 30 minutes
         const PRE_ALERT_WINDOW_MS = 2 * 60 * 1000; // 2 minutes — pré-alerta
         const REFRESH_INTERVAL_MS = 30000; // refresh every 30 seconds
@@ -532,11 +533,12 @@
             }
             container.innerHTML = items.map((m) => {
                 const etdMs = new Date(m.etd).getTime();
-                const isOverdue = !m.sent && !Number.isNaN(etdMs) && now > (etdMs + 15 * 60 * 1000);
+                const isOverdue = !m.sent && !Number.isNaN(etdMs) && now > (etdMs + MVT_OVERDUE_AFTER_ETD_MS);
                 const statusCls = m.sent ? 'status-sent' : (isOverdue ? 'status-overdue' : 'status-pending');
                 const etdText = formatDatetime(m.etd);
+                const encodedId = encodeURIComponent(m.id);
                 return `
-                    <div class="mvt-item ${statusCls}" data-id="${escapeHtml(m.id)}" onclick="markMvtAsSent(this.dataset.id)">
+                    <div class="mvt-item ${statusCls}" data-id="${escapeHtml(encodedId)}" onclick="markMvtAsSent(decodeURIComponent(this.dataset.id))">
                         <div class="mvt-title">✈ ${escapeHtml(m.registration)} · ${escapeHtml(m.origin)} → ${escapeHtml(m.destination)}</div>
                         <div class="mvt-etd">ETD: ${escapeHtml(etdText)}</div>
                         <div>${m.sent ? '✅ Enviado' : (isOverdue ? '🔴 ETD +15 min' : '🟡 Pendente')}</div>
