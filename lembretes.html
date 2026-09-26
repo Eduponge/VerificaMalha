@@ -440,21 +440,27 @@
             localStorage.setItem(MVT_STORAGE_KEY, JSON.stringify(list));
         }
 
-        function getEventEtdDate(event) {
-            const etdRaw = String(event.etd || '').trim();
-            if (!etdRaw) return null;
-            if (etdRaw.includes('T')) {
-                const full = new Date(etdRaw);
-                return Number.isNaN(full.getTime()) ? null : full;
-            }
-            const hm = etdRaw.match(/^(\d{1,2}):(\d{2})$/);
+        function parseFullEtdDatetime(etdRaw) {
+            if (!etdRaw || !etdRaw.includes('T')) return null;
+            const full = new Date(etdRaw);
+            return Number.isNaN(full.getTime()) ? null : full;
+        }
+
+        function expandEtdTimeOnAlertDate(etdRaw, alertDatetime) {
+            const hm = String(etdRaw || '').trim().match(/^(\d{1,2}):(\d{2})$/);
             if (!hm) return null;
-            const alertDate = new Date(event.datetime);
+            const alertDate = new Date(alertDatetime);
             if (Number.isNaN(alertDate.getTime())) return null;
             const etdDate = new Date(alertDate);
             etdDate.setHours(parseInt(hm[1], 10), parseInt(hm[2], 10), 0, 0);
             if (etdDate.getTime() < alertDate.getTime()) etdDate.setDate(etdDate.getDate() + 1);
             return etdDate;
+        }
+
+        function getEventEtdDate(event) {
+            const etdRaw = String(event.etd || '').trim();
+            if (!etdRaw) return null;
+            return parseFullEtdDatetime(etdRaw) || expandEtdTimeOnAlertDate(etdRaw, event.datetime);
         }
 
         function toLocalInputDatetime(dateObj) {
@@ -522,29 +528,37 @@
             const container = document.getElementById('mvtList');
             if (!container) return;
             const now = Date.now();
-            const items = getMvtQueue().slice().sort((a, b) => {
-                const ta = new Date(a.etd).getTime() || 0;
-                const tb = new Date(b.etd).getTime() || 0;
-                return ta - tb;
+            const items = getMvtQueue().map((m) => {
+                const etdMs = new Date(m.etd).getTime();
+                return { ...m, etdMs: Number.isNaN(etdMs) ? 0 : etdMs };
+            }).sort((a, b) => {
+                return a.etdMs - b.etdMs;
             });
             if (!items.length) {
                 container.innerHTML = '<div class="mvt-empty">Nenhuma flag de MVT pendente.</div>';
                 return;
             }
             container.innerHTML = items.map((m) => {
-                const etdMs = new Date(m.etd).getTime();
-                const isOverdue = !m.sent && !Number.isNaN(etdMs) && now > (etdMs + MVT_OVERDUE_AFTER_ETD_MS);
+                const isOverdue = !m.sent && now > (m.etdMs + MVT_OVERDUE_AFTER_ETD_MS);
                 const statusCls = m.sent ? 'status-sent' : (isOverdue ? 'status-overdue' : 'status-pending');
                 const etdText = formatDatetime(m.etd);
                 const encodedId = encodeURIComponent(m.id);
                 return `
-                    <button type="button" class="mvt-item ${statusCls}" data-id="${escapeHtml(encodedId)}" onclick="markMvtAsSent(decodeURIComponent(this.dataset.id))">
+                    <button type="button" class="mvt-item ${statusCls}" data-id="${escapeHtml(encodedId)}">
                         <div class="mvt-title">✈ ${escapeHtml(m.registration)} · ${escapeHtml(m.origin)} → ${escapeHtml(m.destination)}</div>
                         <div class="mvt-etd">ETD: ${escapeHtml(etdText)}</div>
                         <div>${m.sent ? '✅ Enviado' : (isOverdue ? '🔴 ETD +15 min' : '🟡 Pendente')}</div>
                     </button>
                 `;
             }).join('');
+            const buttons = container.querySelectorAll('.mvt-item[data-id]');
+            buttons.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const encodedId = btn.dataset.id || '';
+                    if (!encodedId) return;
+                    markMvtAsSent(decodeURIComponent(encodedId));
+                });
+            });
         }
 
         function getStatus(event) {
