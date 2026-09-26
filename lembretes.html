@@ -485,9 +485,16 @@
             const etdDate = getEventEtdDate(event);
             if (!etdDate) return;
             const etdMs = etdDate.getTime();
-            const list = getMvtQueue();
             const sourceEventId = String(event.id || '');
             if (!sourceEventId) return;
+            const list = getMvtQueue();
+            const isFromSameEvent = (m) => {
+                const sameSource = String(m.sourceEventId || '') === sourceEventId;
+                const legacyMatch = !m.sourceEventId && String(m.id || '').endsWith(`|${sourceEventId}`);
+                return sameSource || legacyMatch;
+            };
+            const previous = list.find(isFromSameEvent);
+            const cleanList = list.filter((m) => !isFromSameEvent(m));
             const id = [
                 event.registration || 'SEM-REG',
                 event.origin || '',
@@ -495,30 +502,16 @@
                 String(etdMs || 0),
                 sourceEventId
             ].join('|');
-            const existingIndex = list.findIndex((m) => String(m.sourceEventId || '') === sourceEventId);
-            if (existingIndex >= 0) {
-                const prev = list[existingIndex];
-                list[existingIndex] = {
-                    ...prev,
-                    id,
-                    sourceEventId,
-                    registration: event.registration || '—',
-                    origin: event.origin || '—',
-                    destination: event.destination || '—',
-                    etdMs
-                };
-            } else {
-                list.push({
-                    id,
-                    sourceEventId,
-                    registration: event.registration || '—',
-                    origin: event.origin || '—',
-                    destination: event.destination || '—',
-                    etdMs,
-                    sent: false
-                });
-            }
-            setMvtQueue(list);
+            cleanList.push({
+                id,
+                sourceEventId,
+                registration: event.registration || '—',
+                origin: event.origin || '—',
+                destination: event.destination || '—',
+                etdMs,
+                sent: !!(previous && previous.sent)
+            });
+            setMvtQueue(cleanList);
             renderMvtList();
         }
 
@@ -529,8 +522,8 @@
             if (!sourceEventId) return;
             const filtered = list.filter((m) => {
                 const sameSource = String(m.sourceEventId || '') === sourceEventId;
-                if (!sameSource) return true;
-                return !!m.sent;
+                const legacyMatch = !m.sourceEventId && String(m.id || '').endsWith(`|${sourceEventId}`);
+                return !(sameSource || legacyMatch);
             });
             if (filtered.length === list.length) return;
             setMvtQueue(filtered);
@@ -1034,7 +1027,7 @@
             renderMvtList();
         }
 
-        window.onload = function() {
+        window.addEventListener('load', function() {
             const deleteAllOverdueBtn = document.getElementById('deleteAllOverdueBtn');
             if (deleteAllOverdueBtn) deleteAllOverdueBtn.addEventListener('click', deleteAllOverdueEvents);
             const clearMvtBtn = document.getElementById('clearMvtBtn');
@@ -1042,7 +1035,7 @@
             purgeSampleEvents();
             tick();
             alertInterval = setInterval(tick, REFRESH_INTERVAL_MS);
-        };
+        });
 
         // ── DayList PDF import ─────────────────────────────────────────────────
 
